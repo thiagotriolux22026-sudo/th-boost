@@ -1,11 +1,11 @@
 {
- "versao": "v9.0",
- "zip": "https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.0.zip",
- "sha256": "eb9780d0e7b050c0db7faa5b2a0f463677be1820dc4873d218dcfcb35bf5f298",
- "tamanho": 329572,
+ "versao": "v9.0.1",
+ "zip": "https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/atualizacao/Th-Boost-v9.0.1-atualizacao.zip",
+ "sha256": "f1c66f9e224f6233f0690f0856a8ac76d72420291d3bab565b9c1b50f83549fd",
+ "tamanho": 235821,
  "data": "2026-11-04",
  "novidades": [
-  "Aviso de versão nova no meio da tela, com o botão Atualizar",
-  "Atualiza sozinho: baixa, confere, guarda a versão anterior e abre de novo"
+  "Versão de teste do aviso de atualização (no uso, é igual à v9.0)",
+  "Atualização mais firme no Windows: arquivo extra em uso não cancela mais"
  ]
 }

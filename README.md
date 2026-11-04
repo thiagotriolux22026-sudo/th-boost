@@ -1,14 +1,19 @@
 # Th Boost
 
-Painel de otimização e monitoramento para Windows (preto e azul). Versão atual: **v9.0**.
+Painel de otimização e monitoramento para Windows (preto e azul). Versão atual: **v9.0.1**.
 
 ## Como baixar (em qualquer computador, sem login)
 
 1. Clique neste link para baixar o ZIP pronto:
-   **[⬇ Baixar o Th Boost v9.0](https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.0.zip)**
-   (endereço: https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.0.zip)
-2. Clique com o botão direito no arquivo baixado e escolha **Extrair para "Th-Boost-v9.0\"**.
+   **[⬇ Baixar o Th Boost v9.0.1](https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.0.1.zip)**
+   (endereço: https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.0.1.zip)
+2. Clique com o botão direito no arquivo baixado e escolha **Extrair para "Th-Boost-v9.0.1\"**.
 3. Abra a pasta e leia o **LEIAME.txt** (ele explica tudo com calma).
+
+## Novidades da v9.0.1
+
+- Versão de teste do aviso de atualização (no uso, é igual à v9.0).
+- A atualização ficou mais firme no Windows: se o ícone ou outro arquivo extra estiver em uso, só o programa é trocado e o resto fica como estava.
 
 ## Novidades da v9.0
 
@@ -38,13 +43,15 @@ Para levar a outro computador sem instalar Python, dê dois cliques em **Gerar e
 | Pasta | O que é |
 |---|---|
 | `download/` | O ZIP pronto de cada versão. É isso que se baixa. |
+| `download/atualizacao/` | O pacote pequeno que o botão **Atualizar** baixa (só o programa e o LEIAME). |
 | `versao.json` | Diz qual é a versão mais nova. O Th Boost (v9.0 em diante) lê este arquivo para mostrar o aviso de atualização. |
 | `fonte/` | O código-fonte, como cópia de segurança. `python build.py` (dentro de `fonte`) gera o `th_boost.py` completo na pasta `out`. |
 
 ## Como publicar uma versão nova (para o dono)
 
-1. Coloque o ZIP novo em `download/` (por exemplo `Th-Boost-v9.1.zip`) e troque o link no começo deste README.
-2. No `versao.json`, troque `versao`, `zip`, `tamanho`, `data`, as `novidades` e o `sha256` (a impressão digital do ZIP; no Windows: `certutil -hashfile Th-Boost-v9.1.zip SHA256`).
-3. Envie tudo junto. Em até alguns minutos, quem estiver com o Th Boost aberto vê o aviso (ele procura ao abrir e a cada 6 horas).
+1. Coloque o ZIP completo novo em `download/` (por exemplo `Th-Boost-v9.1.zip`) e troque o link no começo deste README.
+2. Coloque em `download/atualizacao/` o pacote de atualização (um ZIP só com `th_boost.py` e `LEIAME.txt`; ponha também o ícone ou os `.bat` se eles mudaram).
+3. No `versao.json`, troque `versao`, `zip` (o endereço do pacote de atualização), `tamanho`, `data`, as `novidades` e o `sha256` (a impressão digital do pacote; no Windows: `certutil -hashfile Th-Boost-v9.1-atualizacao.zip SHA256`).
+4. Envie tudo junto. Em até alguns minutos, quem estiver com o Th Boost aberto vê o aviso (ele procura ao abrir e a cada 6 horas).
 
 Se o `sha256` não bater com o ZIP, o programa não atualiza e não troca nada. **Proteja esta conta do GitHub com verificação em duas etapas:** quem conseguir publicar aqui consegue mandar uma versão para todo mundo que usa o Th Boost.

@@ -154,38 +154,43 @@ def atu_conferir_zip(dados, info):
 
 
 def atu_trocar_arquivos(arquivos, pasta):
-    """Guarda os arquivos atuais em 'versao_anterior' e troca pelos novos. Se algo falhar no meio, volta tudo."""
+    """Guarda os arquivos atuais em 'versao_anterior' e troca pelos novos.
+    O th_boost.py é o que importa: se ele não puder ser trocado, nada muda. Os outros (ícone, LEIAME, .bat) podem estar
+    em uso pelo Windows (o ícone da bandeja, por exemplo); esses ficam como estão e o resto segue."""
+    principal = "th_boost.py"
+    if principal not in arquivos:
+        raise ValueError("falta o th_boost.py")
     copia = os.path.join(pasta, "versao_anterior")
     os.makedirs(copia, exist_ok=True)
     for n in arquivos:
         atual = os.path.join(pasta, n)
         if os.path.isfile(atual):
-            shutil.copy2(atual, os.path.join(copia, n))
-    novos = []
-    try:
-        for n, conteudo in arquivos.items():
-            tmp = os.path.join(pasta, n + ".novo")
-            with open(tmp, "wb") as f:
-                f.write(conteudo)
-            novos.append(tmp)
-        trocados = []
-        for n in arquivos:
-            os.replace(os.path.join(pasta, n + ".novo"), os.path.join(pasta, n))
-            trocados.append(n)
-    except OSError:
-        for n in arquivos:  # volta o que já tinha sido trocado
-            antigo = os.path.join(copia, n)
-            if os.path.isfile(antigo):
-                try:
-                    shutil.copy2(antigo, os.path.join(pasta, n))
-                except OSError:
-                    pass
-        for t in novos:
             try:
-                os.remove(t)
+                shutil.copy2(atual, os.path.join(copia, n))
+            except OSError:
+                if n == principal:
+                    raise  # sem a cópia do programa atual, não troca nada
+    def troca(n):
+        tmp = os.path.join(pasta, n + ".novo")
+        try:
+            with open(tmp, "wb") as f:
+                f.write(arquivos[n])
+            os.replace(tmp, os.path.join(pasta, n))
+        except OSError:
+            try:
+                os.remove(tmp)
             except OSError:
                 pass
-        raise
+            raise
+    troca(principal)
+    trocados = [principal]
+    for n in arquivos:
+        if n != principal:
+            try:
+                troca(n)
+                trocados.append(n)
+            except OSError:
+                pass  # arquivo em uso: fica o antigo
     return trocados
 
 

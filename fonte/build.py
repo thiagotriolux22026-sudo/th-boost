@@ -3,7 +3,7 @@ B = os.path.dirname(os.path.abspath(__file__))
 rd = lambda p: open(os.path.join(B, p), encoding="utf-8").read()
 
 DOC = '''"""
-Th Boost v9.0 - painel de otimizacao e monitoramento para Windows (preto e azul).
+Th Boost v9.0.1 - painel de otimizacao e monitoramento para Windows (preto e azul).
 
 Instalar:    pip install psutil
 Executar:    python th_boost.py   (abra como Administrador para overclock, plano de energia, FPS e renovar IP)

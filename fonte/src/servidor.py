@@ -241,7 +241,7 @@ def _rodar_ps(roteiro, prefixo, extra_env, oculto=True):
         return None
 
 
-VERSAO = "v9.0"
+VERSAO = "v9.0.1"
 PORTA = 0
 TOKEN = secrets.token_urlsafe(24)
 TRAVA = threading.Lock()
