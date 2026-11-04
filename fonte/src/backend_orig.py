@@ -327,6 +327,23 @@ def presentmon_colunas(partes):
     return None
 
 
+def fps_estat(quadros, agora, pid_frente=None):
+    """v9.2: (fps do último segundo, app, "1% mais baixo" dos últimos 10 s, tempo médio do quadro em ms). Função pura.
+    O 1% mais baixo é o FPS dos piores quadros (as travadinhas): quanto mais perto do FPS normal, mais liso o jogo."""
+    fps, app = fps_da_janela(quadros, agora, pid_frente)
+    if fps is None:
+        return None, "", None, None
+    ms = [q[3] for q in quadros if q[1] == app and agora - q[0] <= 10 and q[3] > 0]
+    ms_rec = [q[3] for q in quadros if q[1] == app and agora - q[0] <= 1.0 and q[3] > 0]
+    medio = sum(ms_rec) / len(ms_rec) if ms_rec else None
+    baixo = None
+    if len(ms) >= 30:
+        ms.sort()
+        p99 = ms[min(len(ms) - 1, int(len(ms) * 0.99))]
+        baixo = round(1000.0 / p99) if p99 > 0 else None
+    return fps, app, baixo, (round(medio, 1) if medio else None)
+
+
 def fps_da_janela(quadros, agora, pid_frente=None, janela=1.0):
     """quadros: deque de (hora, app, pid, ms). Devolve (fps, app) do jogo na frente; se ele não desenhou nada, o app com
     mais quadros (sem o dwm, que é a própria área de trabalho). Função pura."""
@@ -527,8 +544,9 @@ class Monitor(threading.Thread):
 
     def __init__(self):
         super().__init__(daemon=True)
-        self.dados = {"gpu": None, "gpu_lida": False, "fps": None, "app": "", "fps_erro": "",
+        self.dados = {"gpu": None, "gpu_lida": False, "fps": None, "app": "", "fps_erro": "", "fps1": None, "fps_ms": None,
                       "down": 0.0, "up": 0.0}
+        self.overlay = False  # v9.2: FPS na tela ligado (lê a placa de vídeo mesmo com a janela do Th Boost fechada)
         self.modo_leve = False
         self.forcar = False
         self.fps_ligado = False
@@ -540,20 +558,27 @@ class Monitor(threading.Thread):
         self.quadros = collections.deque()
         self.jogando = False  # v9.1: durante uma sessão de jogo o Th Boost lê menos coisas (sobra mais CPU para o jogo)
         self._dono = {}  # pid -> (hora de criação, é do seu usuário?) para não perguntar ao Windows a cada 4 s
+        self.protege = set()  # v9.2: a janelinha do FPS na tela (o Modo Leve não baixa a prioridade dela)
         self._religar_fps = False
 
     def run(self):
-        ultimo_gpu = ultimo_prio = 0.0
+        ultimo_gpu = ultimo_prio = ultimo_cpu_ov = 0.0
         ultimo_rede = time.time()
         rede_antes = psutil.net_io_counters()
         while True:
             agora = time.time()
             if self.ocioso:  # ninguém olhando os números: não gasta CPU lendo GPU e rede
                 rede_antes, ultimo_rede = psutil.net_io_counters(), agora
-            if not self.ocioso and agora - ultimo_gpu > (5.0 if self.jogando else 1.5):
+            if (not self.ocioso or self.overlay) and agora - ultimo_gpu > (2.0 if self.overlay else 5.0 if self.jogando else 1.5):
                 self.dados["gpu"] = ler_gpu()
                 self.dados["gpu_lida"] = True
                 ultimo_gpu = agora
+            if self.overlay and agora - ultimo_cpu_ov >= 0.9:  # v9.2: CPU % do FPS na tela, lida sempre por esta mesma linha
+                ultimo_cpu_ov = agora
+                try:
+                    self.dados["cpu_ov"] = psutil.cpu_percent(interval=None)
+                except Exception:
+                    self.dados["cpu_ov"] = None
             if not self.ocioso and agora - ultimo_rede >= 1:
                 rede_agora = psutil.net_io_counters()
                 dt = agora - ultimo_rede
@@ -619,13 +644,15 @@ class Monitor(threading.Thread):
                     recebeu = True
                     agora = time.time()
                     self.quadros.append((agora, app, pid, ms))
-                    while self.quadros and agora - self.quadros[0][0] > 2:
+                    while self.quadros and agora - self.quadros[0][0] > 10:
                         self.quadros.popleft()
                     if agora - ultimo >= 0.5:  # atualiza a tela 2x por segundo
                         ultimo = agora
-                        fps, nome = fps_da_janela(self.quadros, agora, pid_em_primeiro_plano())
+                        fps, nome, baixo, ms_q = fps_estat(self.quadros, agora, pid_em_primeiro_plano())
                         self.dados["fps"] = fps
                         self.dados["app"] = nome.replace(".exe", "")
+                        self.dados["fps1"] = baixo
+                        self.dados["fps_ms"] = ms_q
                 try:
                     proc.terminate()
                     proc.wait(timeout=3)
@@ -642,6 +669,7 @@ class Monitor(threading.Thread):
         finally:
             self.proc_fps = None
             self.dados["fps"] = None
+            self.dados["fps1"] = self.dados["fps_ms"] = None
             self.quadros.clear()
             if self._religar_fps:  # desligou e ligou de novo rápido
                 self._religar_fps = False
@@ -670,7 +698,8 @@ class Monitor(threading.Thread):
                 try:
                     nome = (p.info["name"] or "").lower()
                     vistos.add(p.pid)
-                    if p.pid in (0, 4, os.getpid()) or nome in PROTEGIDOS or nome in PROTEGIDOS_LEVE or p.pid in self.fixos:
+                    if p.pid in (0, 4, os.getpid()) or nome in PROTEGIDOS or nome in PROTEGIDOS_LEVE or p.pid in self.fixos \
+                            or p.pid in self.protege or nome.startswith("presentmon"):  # v9.2: o contador e o FPS na tela
                         continue
                     criado = p.info.get("create_time")
                     dono = self._dono.get(p.pid)

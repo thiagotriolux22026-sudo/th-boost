@@ -3,7 +3,7 @@ B = os.path.dirname(os.path.abspath(__file__))
 rd = lambda p: open(os.path.join(B, p), encoding="utf-8").read()
 
 DOC = '''"""
-Th Boost v9.1 - painel de otimizacao e monitoramento para Windows (preto e azul).
+Th Boost v9.2 - painel de otimizacao e monitoramento para Windows (preto e azul, ou a cor que voce escolher).
 
 Instalar:    pip install psutil
 Executar:    python th_boost.py   (abra como Administrador para overclock, plano de energia, FPS e renovar IP)
@@ -16,7 +16,7 @@ O programa fica so no seu computador (127.0.0.1) e fecha sozinho quando a janela
 Atualizacao: de vez em quando ele le github.com/thiagotriolux22026-sudo/th-boost (versao.json) para avisar
 quando o dono publicou uma versao nova. Nada do computador e enviado.
 
-FPS: baixe o PresentMon (github.com/GameTechDev/PresentMon) e coloque PresentMon.exe na mesma pasta.
+FPS: na pagina "FPS na tela", "Instalar contador" baixa o PresentMon oficial (conferido) com um clique.
 """
 
 import base64
@@ -26,6 +26,7 @@ import glob
 import hashlib
 import io
 import json
+import math
 import os
 import re
 import secrets
@@ -46,7 +47,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import psutil
 
 '''
-html = rd("src/ui.html")
+import tema_build
+html = tema_build.temar(rd("src/ui.html"))
 assert '"""' not in html and "\\" not in html.replace("\\n", "") or True
 if '"""' in html:
     raise SystemExit('ui.html contem """')
@@ -65,7 +67,9 @@ cq = rd("src/cpu_perfil.py")
 mi = rd("src/mouse_id.py")
 at = rd("src/atualiza.py")
 au = rd("src/autoteste.py")
+tm = rd("src/tema.py")
+ov = rd("src/overlay.py")
 sv = rd("src/servidor.py")
-saida = DOC + bk.rstrip() + "\n\n" + aj.rstrip() + "\n\n\n" + xt.rstrip() + "\n\n\n" + jg.rstrip() + "\n\n\n" + jl.rstrip() + "\n\n\n" + mt.rstrip() + "\n\n\n" + pc.rstrip() + "\n\n\n" + cp.rstrip() + "\n\n\n" + fr.rstrip() + "\n\n\n" + mm.rstrip() + "\n\n\n" + oc.rstrip() + "\n\n\n" + cq.rstrip() + "\n\n\n" + mi.rstrip() + "\n\n\n" + at.rstrip() + "\n\n\n" + au.rstrip() + "\n\n\n" + sv.rstrip() + '\n\n\nHTML = r"""' + html + '"""\n\n\nif __name__ == "__main__":\n    principal()\n'
+saida = DOC + bk.rstrip() + "\n\n" + aj.rstrip() + "\n\n\n" + xt.rstrip() + "\n\n\n" + jg.rstrip() + "\n\n\n" + jl.rstrip() + "\n\n\n" + mt.rstrip() + "\n\n\n" + pc.rstrip() + "\n\n\n" + cp.rstrip() + "\n\n\n" + fr.rstrip() + "\n\n\n" + mm.rstrip() + "\n\n\n" + oc.rstrip() + "\n\n\n" + cq.rstrip() + "\n\n\n" + mi.rstrip() + "\n\n\n" + at.rstrip() + "\n\n\n" + au.rstrip() + "\n\n\n" + tm.rstrip() + "\n\n\n" + ov.rstrip() + "\n\n\n" + sv.rstrip() + '\n\n\nHTML = r"""' + html + '"""\n\n\nif __name__ == "__main__":\n    principal()\n'
 open(os.path.join(B, "out/th_boost.py"), "w", encoding="utf-8").write(saida)
 print("ok", len(saida.splitlines()), "linhas")

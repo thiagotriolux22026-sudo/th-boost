@@ -1,15 +1,14 @@
 {
- "versao": "v9.1",
- "zip": "https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/atualizacao/Th-Boost-v9.1-atualizacao.zip",
- "sha256": "092941aba04c4bfec71d5f4e0e0767e9476e621130433ed559e1f950d4922dca",
- "tamanho": 259213,
+ "versao": "v9.2",
+ "zip": "https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/atualizacao/Th-Boost-v9.2-atualizacao.zip",
+ "sha256": "7c4996a922e0b343802dbc052125ab4025048e529b20b085b84a99111607f7b6",
+ "tamanho": 368800,
  "data": "2026-11-04",
  "novidades": [
-  "Jogos sem travadinhas: Liberar a RAM inteligente e cache de shader da placa de vídeo preservado",
-  "Contador de FPS com o PresentMon novo, e Modo FPS On devolve tudo ao desligar",
-  "Plano de energia respeita o seu perfil de processador, o notebook na bateria e os Ryzen X3D",
-  "Mais segurança: lixeira, apps instalados por você, DNS, overclock e sessão de jogo",
-  "Novo Autoteste em Configurações, com relatório para copiar",
-  "Se uma versão nova não abrir no seu PC, o Th Boost volta sozinho para a anterior"
+  "Nova página FPS na tela: FPS, 1% baixo, CPU, GPU e RAM num cantinho por cima do jogo (Ctrl+Shift+F esconde)",
+  "Contador de FPS com um clique: baixa o PresentMon oficial da Intel e confere o arquivo",
+  "Modo FPS On arrumado: agora liga sempre e devolve tudo ao desligar",
+  "Nova página Cor do painel: escolha a cor do Th Boost inteiro (8 cores prontas ou do seu jeito)",
+  "Logo azul também no que você fixou no menu Iniciar e na barra de tarefas"
  ]
 }

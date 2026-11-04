@@ -1,14 +1,22 @@
 # Th Boost
 
-Painel de otimização e monitoramento para Windows (preto e azul). Versão atual: **v9.1**.
+Painel de otimização e monitoramento para Windows (preto e azul, ou a cor que você escolher). Versão atual: **v9.2**.
 
 ## Como baixar (em qualquer computador, sem login)
 
 1. Clique neste link para baixar o ZIP pronto:
-   **[⬇ Baixar o Th Boost v9.1](https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.1.zip)**
-   (endereço: https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.1.zip)
-2. Clique com o botão direito no arquivo baixado e escolha **Extrair para "Th-Boost-v9.1\"**.
+   **[⬇ Baixar o Th Boost v9.2](https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.2.zip)**
+   (endereço: https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.2.zip)
+2. Clique com o botão direito no arquivo baixado e escolha **Extrair para "Th-Boost-v9.2\"**.
 3. Abra a pasta e leia o **LEIAME.txt** (ele explica tudo com calma).
+
+## Novidades da v9.2
+
+- **FPS na tela** (página nova): uma janelinha num canto, por cima do jogo, com FPS, 1% baixo, tempo de cada quadro, CPU, placa de vídeo, temperaturas (quando o PC informa) e RAM. Escolha o canto, o tamanho e os itens. **Ctrl+Shift+F** esconde e mostra. Não pega clique nem teclado e não entra no jogo. Funciona com jogos em janela ou em tela cheia sem bordas.
+- **Contador de FPS com um clique:** "Instalar contador" baixa o PresentMon 2.6.0 oficial da Intel e só grava se a impressão digital do arquivo bater.
+- **Modo FPS On arrumado:** agora liga sempre (antes dependia do contador), dá prioridade ao jogo e põe um plano de energia de desempenho; ao desligar, tudo volta. Junto com uma sessão de jogo, nada fica preso no Modo Leve.
+- **Cor do painel** (página nova): o painel inteiro muda de cor na hora (8 cores prontas ou qualquer tom). As cores de aviso continuam verde, amarelo e vermelho.
+- **Logo azul no que foi fixado** (menu Iniciar, barra de tarefas, área de trabalho): o Th Boost troca o ícone dos atalhos dele e o botão Atualizar também passa a trocar o `Th Boost.ico`.
 
 ## Novidades da v9.1
 

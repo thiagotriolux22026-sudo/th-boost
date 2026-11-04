@@ -542,15 +542,23 @@ class JogosMixin:
             for svc, nome in s["servicos_nomes"]:
                 executar(["sc", "start", svc], timeout=30)
             feitos.append("serviços de volta")
-        if s.get("plano_anterior"):
-            planos = {p["guid"] for p in listar_planos()}
-            alvo = s["plano_anterior"] if s["plano_anterior"] in planos else PLANOS_CONHECIDOS["equilibrado"][0]
-            executar(["powercfg", "/setactive", alvo])
-            feitos.append("plano de energia de antes")
-        if s.get("leve") and not s.get("leve_antes"):
-            self.mon.modo_leve = False
-            self.mon.forcar = True
-            feitos.append("prioridades normais")
+        fps = getattr(self, "modo_fps", False) and getattr(self, "_fps_antes", None) is not None
+        if fps:  # v9.2: o Modo FPS On continua ligado: ele fica com o plano e o Modo Leve e devolve tudo quando for desligado
+            if s.get("plano_anterior") and not self._fps_antes.get("plano"):
+                self._fps_antes["plano"] = s["plano_anterior"]
+            if s.get("leve"):
+                self._fps_antes["leve"] = bool(s.get("leve_antes"))
+            feitos.append("o Modo FPS On continua ligado")
+        else:
+            if s.get("plano_anterior"):
+                planos = {p["guid"] for p in listar_planos()}
+                alvo = s["plano_anterior"] if s["plano_anterior"] in planos else PLANOS_CONHECIDOS["equilibrado"][0]
+                executar(["powercfg", "/setactive", alvo])
+                feitos.append("plano de energia de antes")
+            if s.get("leve") and not s.get("leve_antes"):
+                self.mon.modo_leve = False
+                self.mon.forcar = True
+                feitos.append("prioridades normais")
         self.msg(f"{motivo}. " + (("De volta ao normal: " + ", ".join(feitos) + ".") if feitos else "Nada precisou voltar."))
 
     def _sessao_restaurar_parcial(self, ctx):

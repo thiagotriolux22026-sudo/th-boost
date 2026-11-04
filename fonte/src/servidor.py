@@ -45,6 +45,10 @@ def carregar_config():
         CONFIG["oc_antes"] = {k: oa[k] for k in ("core", "mem", "pot_mw")}
     if isinstance(dados.get("atu_pular"), str) and versao_tupla(dados["atu_pular"]):
         CONFIG["atu_pular"] = dados["atu_pular"][:12]
+    if tema_valida(dados.get("tema_tr")):
+        CONFIG["tema_tr"] = tema_valida(dados["tema_tr"])
+    if isinstance(dados.get("overlay"), dict):
+        CONFIG["overlay"] = {k: v for k, v in ov_valida(dados["overlay"]).items() if k in ("pos", "tam", "itens")}
     if isinstance(dados.get("sessao_pendente"), dict):  # validado em sessao_retomar
         CONFIG["sessao_pendente"] = dados["sessao_pendente"]
     nome = _nome_limpo(dados.get("nome"))
@@ -272,7 +276,7 @@ def _rodar_ps(roteiro, prefixo, extra_env, oculto=True):
         return None
 
 
-VERSAO = "v9.1"
+VERSAO = "v9.2"
 PORTA = 0
 TOKEN = secrets.token_urlsafe(24)
 TRAVA = threading.Lock()
@@ -286,7 +290,7 @@ def _contar_processos():
 
 
 class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, FerramentasMixin, MemoriaMixin, CpuMixin,
-             OverclockMixin, CpuPerfilMixin, MouseIdMixin, AtualizaMixin, AutotesteMixin):
+             OverclockMixin, CpuPerfilMixin, MouseIdMixin, AtualizaMixin, AutotesteMixin, OverlayMixin):
     """Guarda tudo o que a interface mostra e executa as ações pedidas por ela."""
 
     def __init__(self):
@@ -294,6 +298,9 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
         self.mon.start()
         self._fps_antes = None  # o que o Modo FPS On mudou (para devolver ao desligar)
         self._fps_sumiu = 0
+        self.modo_fps = False  # v9.2: o Modo FPS On liga mesmo sem o contador de FPS
+        self.contador_manual = False
+        self.ov_iniciar_estado()
         self.historico = collections.deque(maxlen=40)
         self.contador_msg = 0
         self.serie = {k: collections.deque(maxlen=120) for k in ("cpu", "ram", "gpu", "down", "up")}
@@ -531,8 +538,10 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
             "versao": VERSAO, "admin": e_admin(), "win": IS_WIN, "usuario": USUARIO.title(),
             "nome": nome_da_pessoa(), "nome_fixo": bool(_nome_limpo(CONFIG.get("nome"))),
             "pasta": pasta_do_programa(), "presentmon": bool(caminho_presentmon()),
-            "modo_leve": self.mon.modo_leve, "fps_ligado": self.mon.fps_ligado,
-            "fps": d["fps"], "fps_app": d["app"], "fps_erro": d["fps_erro"],
+            "modo_leve": self.mon.modo_leve, "fps_ligado": self.mon.fps_ligado, "modo_fps": self.modo_fps,
+            "contador_manual": self.contador_manual, "tema_tr": tema_tr(),
+            "fps": d["fps"], "fps_app": d["app"], "fps_erro": d["fps_erro"], "fps1": d.get("fps1"), "fps_ms": d.get("fps_ms"),
+            "ov": self.ov_snapshot(),
             "ping": self.ping_ms, "otim": self.otim, "ext": self.ext_snapshot(),
             "oc": self.oc_estado(),
             "jogos": {"procurando": self.procurando, "ocultos": len(CONFIG.get("jogos_ocultos") or []),
@@ -550,32 +559,36 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
         return a
 
     def _fps_voltar(self, texto):
-        """Devolve o Modo Leve e o plano de energia de antes do Modo FPS On."""
+        """Devolve o Modo Leve e o plano de energia de antes do Modo FPS On.
+        Se uma sessão de jogo está rodando, ela continua com o que precisa e, quando terminar, devolve o que era de antes
+        do Modo FPS On (v9.2: antes o Modo Leve podia ficar ligado para sempre)."""
         antes = self._fps_antes or {}
         self._fps_antes = None
-        if not (self.sessao and self.sessao.get("leve")):  # a sessão de jogo cuida do Modo Leve dela
+        s = self.sessao
+        if s and s.get("leve"):
+            s["leve_antes"] = bool(antes.get("leve"))
+        else:
             self.mon.modo_leve = bool(antes.get("leve"))
             self.mon.forcar = True
-        if antes.get("plano") and not (self.sessao and self.sessao.get("plano_anterior")):
+        if antes.get("plano") and s:
+            if not s.get("plano_anterior"):
+                s["plano_anterior"] = antes["plano"]
+            self.msg(texto + " A sessão de jogo continua; quando ela terminar, tudo volta como era antes.")
+        elif antes.get("plano"):
             self.em_fundo(lambda: texto + " " + plano_voltar(antes["plano"]))
         else:
             self.msg(texto)
 
     def _fps_conferir(self):
-        """O PresentMon parou sozinho (erro, jogo fechou o contador...): o resto do Modo FPS On também volta."""
-        if self._fps_antes is not None and not self.mon.fps_ligado and self.mon.proc_fps is None:
-            espera = getattr(self, "_fps_sumiu", 0) or time.time()
-            self._fps_sumiu = espera
-            if time.time() - espera > 4:  # dá um tempinho: ao religar rápido o leitor novo ainda está subindo
-                self._fps_sumiu = 0
-                self._fps_voltar("O contador de FPS parou, então o Modo FPS On foi desligado.")
-        else:
-            self._fps_sumiu = 0
+        """v9.2: o Modo FPS On não depende mais do contador; aqui só confere se a janelinha do FPS na tela fechou sozinha."""
+        self.ov_conferir()
 
     def ocupado(self):
         """v9.1: o que ainda está rodando e não pode ser cortado ao fechar a janela ('' = nada)."""
         if self.atu.get("estado") in ("baixando", "instalando", "reiniciando"):
             return "atualização"
+        if self.ov["on"]:
+            return "FPS na tela"
         if self.sessao and (self.sessao.get("pasta") or self.sessao.get("pid")):
             return "sessão de jogo"  # só quando dá para saber que o jogo fechou; a sessão manual termina ao fechar a janela
         if self.otim["ativo"] or self.pre["ativo"]:
@@ -828,31 +841,48 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
             self.mon.modo_leve = not self.mon.modo_leve
             self.mon.forcar = True
             self.msg("Modo Leve ligado." if self.mon.modo_leve else "Modo Leve desligado.")
-        elif nome == "fps":
-            ligar = not self.mon.fps_ligado
-            if ligar and caminho_presentmon() is None:  # v9.1: sem o contador, o modo nem liga (antes ligava o resto pela metade)
-                self.mon.ligar_fps(True)  # só para mostrar na tela onde baixar o PresentMon
-                return self.msg("Modo FPS On precisa do PresentMon. Baixe em github.com/GameTechDev/PresentMon e coloque o .exe "
-                                "na pasta do Th Boost.")
-            if ligar:
-                if self._fps_antes is None:  # religando: guarda o "antes" da primeira vez
+        elif nome == "fps":  # v9.2: Modo FPS On = prioridade para o jogo + plano de desempenho (+ contador, se instalado)
+            if not self.modo_fps:
+                self.modo_fps = True
+                if self._fps_antes is None:
                     self._fps_antes = {"leve": self.mon.modo_leve, "plano": None}
                 self.mon.modo_leve = True
                 self.mon.forcar = True
-                self.mon.ligar_fps(True)
-                self.msg("Modo FPS On ligado.")
+                self.fps_contador_ajusta()
+
+                ref = self._fps_antes
 
                 def plano():
                     texto, anterior, _ = plano_para_jogar()
-                    if anterior and self._fps_antes is None:  # o Modo FPS On foi desligado enquanto o plano trocava
+                    if anterior and (not self.modo_fps or self._fps_antes is not ref):  # foi desligado enquanto o plano trocava
                         return "Modo FPS On desligado. " + plano_voltar(anterior)
-                    if self._fps_antes is not None and anterior:
-                        self._fps_antes["plano"] = anterior
-                    return "Modo FPS On ligado. " + texto
+                    if ref is not None and anterior:
+                        ref["plano"] = anterior
+                    extra = "" if caminho_presentmon() else " (Para ver o FPS, instale o contador na página FPS na tela.)"
+                    return "Modo FPS On ligado: o jogo tem prioridade. " + texto + extra
                 self.em_fundo(plano)
             else:
-                self.mon.ligar_fps(False)
+                self.modo_fps = False
+                self.fps_contador_ajusta()
                 self._fps_voltar("Modo FPS On desligado.")
+        elif nome == "fps_contador":  # só o contador (botão do Monitor)
+            self.contador_manual = not self.contador_manual
+            if self.contador_manual and not caminho_presentmon():
+                self.contador_manual = False
+                return self.msg("Instale o contador de FPS na página FPS na tela (um clique).")
+            self.fps_contador_ajusta()
+        elif nome == "tema":  # v9.2: cor do painel (a tela já mudou na hora; aqui só guarda)
+            v = tema_valida(dados.get("tr"))
+            if v is not None and v != tema_tr():
+                if v:
+                    CONFIG["tema_tr"] = v
+                else:
+                    CONFIG.pop("tema_tr", None)
+                salvar_config()
+        elif nome == "overlay":
+            self.ov_definir(dados.get("cfg") if isinstance(dados.get("cfg"), dict) else {})
+        elif nome == "pm_instalar":
+            self.pm_instalar()
         elif nome == "oc_nivel":
             self.oc_definir(dados.get("nivel"))
         elif nome == "oc_zerar":
@@ -1119,6 +1149,10 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
                 plano_voltar(antes["plano"])  # o Modo FPS On tinha trocado o plano de energia
         except Exception:
             pass
+        try:
+            self.ov_fechar()  # some com o FPS na tela
+        except Exception:
+            pass
         self.cpu_fechar()  # solta o teto de CPU dos programas em segundo plano
         self.oc_fechar()  # devolve a placa de vídeo ao padrão, se o overclock estava ligado
         try:
@@ -1201,7 +1235,7 @@ class Manipulador(BaseHTTPRequestHandler):
         url = urllib.parse.urlparse(self.path)
         consulta = urllib.parse.parse_qs(url.query)
         if url.path == "/":
-            return self._responder(200, HTML_PRONTO, "text/html; charset=utf-8", {
+            return self._responder(200, html_com_tema(HTML_PRONTO), "text/html; charset=utf-8", {
                 "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
                                            "script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'"})
         if url.path == "/favicon.ico":
@@ -1214,6 +1248,9 @@ class Manipulador(BaseHTTPRequestHandler):
             return self._fluxo()
         if url.path == "/api/ping":
             return self._responder(200, NUCLEO.ping())
+        if url.path == "/api/overlay":  # v9.2: a janelinha do FPS na tela lê daqui
+            NUCLEO.ov_atalho((consulta.get("hk") or [""])[0])
+            return self._responder(200, NUCLEO.ov_dados())
         if url.path == "/api/catalogo":
             return self._responder(200, NUCLEO.catalogo())
         if url.path == "/api/lista":
@@ -1404,6 +1441,9 @@ public static class ThBoostIcone {
     if (r != 0) throw new Exception("SetValue " + r.ToString("X"));
   }
 
+  [DllImport("shell32.dll")] static extern void SHChangeNotify(int e, uint f, IntPtr a, IntPtr b);
+  public static void Redesenhar() { SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero); }
+
   public static void Aplicar(IntPtr hwnd, string id, string icone, string comando, string nome) {
     Guid iid = new Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99");
     IPropertyStore ps;
@@ -1419,6 +1459,33 @@ public static class ThBoostIcone {
 '@
 try {
   Add-Type -TypeDefinition $tipo
+  # v9.2: os atalhos do Th Boost (área de trabalho, menu Iniciar e fixados na barra) passam a usar o ícone novo.
+  # O Windows guarda a imagem de cada caminho de ícone; trocando o caminho ele é obrigado a ler o ícone de novo
+  # (por isso o logo vermelho antigo continuava aparecendo no que foi fixado).
+  try {
+    $pasta = $env:T_PASTA.TrimEnd('\')
+    $sh = New-Object -ComObject WScript.Shell
+    $lugares = @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('CommonDesktopDirectory'),
+      [Environment]::GetFolderPath('StartMenu'), [Environment]::GetFolderPath('CommonStartMenu'),
+      (Join-Path $env:APPDATA 'Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar'),
+      (Join-Path $env:APPDATA 'Microsoft\Internet Explorer\Quick Launch\User Pinned\StartMenu'))
+    $mudou = $false
+    foreach ($l in $lugares) {
+      if (-not $l -or -not (Test-Path -LiteralPath $l)) { continue }
+      foreach ($f in @(Get-ChildItem -LiteralPath $l -Filter '*.lnk' -Recurse -Depth 3 -ErrorAction SilentlyContinue)) {
+        try {
+          $a = $sh.CreateShortcut($f.FullName)
+          $txt = ([string]$a.TargetPath) + ' ' + ([string]$a.Arguments)
+          $nosso = $false
+          foreach ($n in @('Abrir Th Boost.bat', 'Th Boost.exe')) {
+            if ($txt.IndexOf((Join-Path $pasta $n), [StringComparison]::OrdinalIgnoreCase) -ge 0) { $nosso = $true }
+          }
+          if ($nosso -and $a.IconLocation -ne ($icone + ',0')) { $a.IconLocation = $icone + ',0'; $a.Save(); $mudou = $true }
+        } catch { }
+      }
+    }
+    if ($mudou) { [ThBoostIcone]::Redesenhar() }
+  } catch { }
   for ($i = 0; $i -lt 45; $i++) {
     $h = [ThBoostIcone]::Achar('Th Boost')
     if ($h -ne [IntPtr]::Zero) {
@@ -1431,14 +1498,42 @@ try {
 """
 
 
+def icone_estavel(pasta, destino=None):
+    """v9.2: copia o "Th Boost.ico" para um arquivo com nome tirado do conteúdo (th_boost_<impressão>.ico).
+    Ícone novo = caminho novo, e o Windows não consegue mostrar a imagem velha guardada. Devolve o caminho a usar."""
+    icone = os.path.join(pasta, "Th Boost.ico")
+    try:
+        with open(icone, "rb") as f:
+            dados = f.read(2 * 1024 * 1024)
+        if dados[:4] != b"\x00\x00\x01\x00":
+            return icone
+        base = destino or os.path.join(os.environ.get("LOCALAPPDATA") or pasta, "ThBoost", "icones")
+        os.makedirs(base, exist_ok=True)
+        alvo = os.path.join(base, f"th_boost_{hashlib.sha256(dados).hexdigest()[:12]}.ico")
+        if not os.path.isfile(alvo):
+            tmp = alvo + ".tmp"
+            with open(tmp, "wb") as f:
+                f.write(dados)
+            os.replace(tmp, alvo)
+            for velho in glob.glob(os.path.join(base, "th_boost_*.ico")):  # os de versões antigas
+                if os.path.normcase(velho) != os.path.normcase(alvo):
+                    try:
+                        os.remove(velho)
+                    except OSError:
+                        pass
+        return alvo
+    except OSError:
+        return icone
+
+
 def ajustar_icone_barra():
-    """Faz o botão da barra de tarefas mostrar o ícone do Th Boost (e não o do Edge)."""
+    """Faz o botão da barra de tarefas mostrar o ícone do Th Boost (e não o do Edge) e põe o ícone novo nos atalhos."""
     if not IS_WIN:
         return
     pasta = pasta_do_programa()
-    icone = os.path.join(pasta, "Th Boost.ico")
-    if not os.path.isfile(icone):
+    if not os.path.isfile(os.path.join(pasta, "Th Boost.ico")):
         return
+    icone = icone_estavel(pasta)
     bat = os.path.join(pasta, "Abrir Th Boost.bat")
     if os.path.isfile(bat):
         comando = f'"{bat}"'
@@ -1452,7 +1547,7 @@ def ajustar_icone_barra():
         try:
             with open(arq, "w", encoding="utf-8-sig") as f:
                 f.write(PS_ICONE)
-            ambiente = dict(os.environ, T_ICONE=icone, T_CMD=comando)
+            ambiente = dict(os.environ, T_ICONE=icone, T_CMD=comando, T_PASTA=pasta)
             subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", arq],
                            env=ambiente, timeout=90, creationflags=subprocess.CREATE_NO_WINDOW,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -1515,6 +1610,12 @@ def vigiar():
 
 def principal():
     global NUCLEO, PORTA, HTML_PRONTO
+    if "--overlay" in sys.argv[1:]:  # v9.2: a janelinha do FPS na tela (processo separado)
+        a = sys.argv[1:]
+        i = a.index("--overlay")
+        if i + 2 < len(a) and a[i + 1].isdigit():
+            sys.exit(overlay_principal(int(a[i + 1]), a[i + 2]) or 0)
+        return
     if "--encerrar" in sys.argv[1:]:  # usado pelo "Encerrar Th Boost.bat": fecha o que está rodando em segundo plano
         inst = instancia_ativa() if USAR_INSTANCIA else None
         if inst:
