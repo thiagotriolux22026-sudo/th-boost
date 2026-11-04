@@ -933,6 +933,27 @@ html.leve .mm-fig{filter:none}
 @media (max-height:800px){.nv{padding:12px 12px 10px}.marca{padding:0 8px 6px}.it{padding:0 14px}}
 html.leve .nv,html.leve .marca>div:not(.emb),html.leve .it>span:not(.tl),html.leve .adm,html.leve .adm div{transition:none}
 html.leve .w3::before{text-shadow:.018em .02em 0 #3c9bff,.036em .04em 0 #348cf6,.054em .06em 0 #2c7ce6,.072em .08em 0 #256ed2,.09em .1em 0 #1e5fbb,.108em .12em 0 #184f9f,.126em .14em 0 #123f82,.144em .16em 0 #0d3066,.162em .18em 0 #08224b,.18em .2em .08em rgba(0,0,0,.95),0 0 .7em rgba(47,140,255,.38)!important}
+
+/* ===== v9.0: aviso de versão nova (parece uma notificação, no meio da tela) ===== */
+.atu-not{position:fixed;inset:0;z-index:900;display:grid;place-items:center;padding:18px;background:rgba(2,6,14,.55);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);animation:atuFd .35s ease both}
+.atu-not[hidden],.atu-not [hidden]{display:none!important}
+@keyframes atuFd{from{opacity:0}to{opacity:1}}
+.atu-card{position:relative;width:min(560px,100%);display:flex;gap:20px;padding:28px 30px 26px 26px;border-radius:24px;background:linear-gradient(160deg,#131c2e,#0a0f17);border:1px solid #2f5590;box-shadow:0 40px 90px -24px #000,0 0 0 1px rgba(51,137,250,.2),0 0 60px -12px rgba(51,137,250,.6);animation:atuIn .5s var(--ease) both}
+@keyframes atuIn{from{opacity:0;transform:translateY(22px) scale(.94)}to{opacity:1;transform:none}}
+.atu-ic{flex:none;width:60px;height:60px;border-radius:17px;display:grid;place-items:center;background:linear-gradient(135deg,#4091fa,#125ec1);color:#fff;box-shadow:0 12px 28px -10px rgba(51,137,250,.9)}
+.atu-ic svg{width:30px;height:30px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transform-origin:50% 10%}
+.atu-not.toca .atu-ic svg{animation:atuSino 1.1s ease-in-out .3s 2}
+@keyframes atuSino{0%,100%{transform:rotate(0)}15%{transform:rotate(15deg)}30%{transform:rotate(-12deg)}45%{transform:rotate(8deg)}60%{transform:rotate(-5deg)}75%{transform:rotate(2deg)}}
+.atu-cx{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;padding-right:14px}
+.atu-cx b{font-size:21px;color:#fff;line-height:1.25}
+.atu-cx span{font-size:15.5px;color:#a9b8cf;line-height:1.45}
+.atu-cx ul{margin:6px 0 2px;padding-left:20px;font-size:14.5px;color:#d3e0f2;line-height:1.55}
+.atu-bar{height:8px;border-radius:9px;background:#1a2436;overflow:hidden;margin-top:8px}.atu-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#125ec1,#3389fa,#9fd0ff);transition:width .3s}
+.atu-cx small{color:#fca5a5;font-size:13.5px;line-height:1.45}
+.atu-bt{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}.atu-bt .bt{min-height:48px;padding:0 26px;font-size:15px}
+.atu-x{position:absolute;top:12px;right:14px;width:34px;height:34px;border:0;border-radius:10px;background:none;color:#8a9ab3;font-size:24px;line-height:1;cursor:pointer}.atu-x:hover{color:#fff;background:#1a2436}
+html.leve .atu-not,html.leve .atu-card{animation:none}html.leve .atu-not{-webkit-backdrop-filter:none;backdrop-filter:none}html.leve .atu-not.toca .atu-ic svg{animation:none}
+@media (max-width:560px){.atu-card{flex-direction:column;gap:14px;padding:22px 20px 20px}.atu-cx b{font-size:19px}}
 </style>
 </head>
 <body>
@@ -1291,12 +1312,20 @@ html.leve .w3::before{text-shadow:.018em .02em 0 #3c9bff,.036em .04em 0 #348cf6,
           <div class="cd led modo-c" style="--i:0"><h2>Efeitos visuais</h2><p>Desligue para deixar o programa mais leve em computadores fracos. Tira as luzes que correm nas bordas, os brilhos e os desfoques.</p><div class="lin"><button class="sw" id="swFx" aria-label="Efeitos visuais"><i></i></button><span class="st" id="stFx">COMPLETOS</span></div></div>
           <div class="cd" style="--i:1"><h3>Diagnóstico</h3><div class="dg" id="dg"></div></div>
         </div>
+        <div class="cd" style="--i:2" id="atuCfg"><div class="linha" style="flex-wrap:wrap;align-items:center;gap:16px"><div style="flex:1;min-width:220px"><b style="font-size:16px">Atualizações</b><p style="margin-top:3px" id="atuSt">Ainda não procurei versão nova.</p></div><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><button class="sw on" id="swAtu" aria-label="Avisar quando o dono publicar versão nova" aria-pressed="true"><i></i></button><span class="st on" id="stAtu">AVISAR</span><button class="bt" id="atuAgora">Procurar agora</button></div></div></div>
         <div class="cd" style="--i:2"><div class="linha" style="flex-wrap:nowrap;align-items:center;gap:16px"><div style="flex:1;min-width:0"><b style="font-size:16px">Encerrar o Th Boost</b><p style="margin-top:3px">Fecha o programa de vez, mesmo que ele esteja em segundo plano. As prioridades voltam ao normal.</p></div><button class="bt" data-c="encerrar_tudo" data-ct="Encerrar o Th Boost?" data-cp="O programa fecha por completo e o Modo Leve é desligado. Para usar de novo, abra pelo atalho.">Encerrar</button></div></div>
       </section>
     </div>
   </div>
 </div>
 
+<div id="atuNot" class="atu-not" hidden role="alertdialog" aria-modal="false" aria-labelledby="atuTit" aria-describedby="atuTx"><div class="atu-card">
+ <div class="atu-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></div>
+ <div class="atu-cx"><b id="atuTit">O dono atualizou o Th Boost</b><span id="atuTx"></span><ul id="atuNov" hidden></ul>
+  <div class="atu-bar" id="atuBar" hidden><i id="atuPct"></i></div><small id="atuErr" hidden></small>
+  <div class="atu-bt"><button class="bt p" id="atuSim">Atualizar</button><button class="bt" id="atuNao">Depois</button></div></div>
+ <button class="atu-x" id="atuX" aria-label="Fechar o aviso">&times;</button>
+</div></div>
 <div id="toasts"></div>
 <div id="cf"><div class="cx"><h3 id="cfT"></h3><p id="cfP"></p><div class="linha" style="justify-content:flex-end"><button class="bt" id="cfN">Cancelar</button><button class="bt p" id="cfS">Continuar</button></div></div></div>
 
@@ -1450,7 +1479,11 @@ document.addEventListener('click',e=>{
   inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();fim(true)}else if(e.key==='Escape'){e.preventDefault();e.stopPropagation();fim(false)}};
   inp.onblur=()=>fim(true)}
  btn.onclick=editar})();
-$('#swBg').onclick=()=>acao('segundo_plano',{ligar:!$('#swBg').classList.contains('on')});$('#swLeve').onclick=()=>acao('leve');$('#swFps').onclick=()=>acao('fps');$('#swFps2').onclick=()=>acao('fps');
+$('#swBg').onclick=()=>acao('segundo_plano',{ligar:!$('#swBg').classList.contains('on')});
+$('#atuSim').onclick=()=>{$('#atuSim').disabled=true;acao('atu_instalar').finally(()=>{$('#atuSim').disabled=false})};
+$('#atuNao').onclick=$('#atuX').onclick=()=>{const a=S&&S.atu;if(a&&a.nova){atuDepois=a.nova;try{sessionStorage.setItem('thboost-atu-depois',a.nova)}catch(e){}}$('#atuNot').hidden=true;toast('Tudo bem. O aviso volta quando você abrir o Th Boost de novo (ou em Configurações › Atualizações).')};
+$('#swAtu').onclick=()=>acao('atu_avisar',{ligar:!$('#swAtu').classList.contains('on')});
+$('#atuAgora').onclick=()=>{atuDepois='';try{sessionStorage.removeItem('thboost-atu-depois')}catch(e){}acao('atu_procurar')};$('#swLeve').onclick=()=>acao('leve');$('#swFps').onclick=()=>acao('fps');$('#swFps2').onclick=()=>acao('fps');
 $('#rg').addEventListener('input',()=>rgTxt());
 $('#ocAp').onclick=()=>{const n=+$('#rg').value,oc=(S&&S.oc)||{};
  if(S&&!S.admin)return toast('O overclock precisa do Th Boost aberto como Administrador. Feche e abra pelo atalho da área de trabalho.');
@@ -1477,7 +1510,30 @@ function toast(txt){const t=document.createElement('div');t.className='toast';t.
 let S=null,ultMsg=null,ultFim=null,jogosSig='',ocVisto=-1;
 const gb=(v,d=1)=>(v==null?'--':v.toFixed(d).replace('.',',')+' GB');
 function vel(b){const u=['B/s','KB/s','MB/s','GB/s'];let i=0;while(b>=1024&&i<3){b/=1024;i++}return b.toFixed(1).replace('.',',')+' '+u[i]}
+/* ===== v9.0: aviso de versão nova + atualizar com um clique ===== */
+let atuDepois=(()=>{try{return sessionStorage.getItem('thboost-atu-depois')||''}catch(e){return ''}})(),atuReinicio=false,atuOkMostrado=false;
+function atuMostra(a){if(!a)return;const box=$('#atuNot');
+ if(a.de&&!atuOkMostrado){atuOkMostrado=true;let ja=false;try{ja=sessionStorage.getItem('thboost-atu-ok')===a.atual;sessionStorage.setItem('thboost-atu-ok',a.atual)}catch(e){}if(!ja)toast(`Th Boost atualizado: ${a.de} → ${a.atual}. Tudo pronto!`)}
+ // cartão de Configurações
+ const sw=$('#swAtu');if(sw){sw.classList.toggle('on',!!a.avisar);sw.setAttribute('aria-pressed',!!a.avisar);$('#stAtu').textContent=a.avisar?'AVISAR':'NÃO AVISAR';$('#stAtu').classList.toggle('on',!!a.avisar);
+  $('#atuSt').textContent=a.estado==='procurando'?'Procurando versão nova…':a.estado==='em_dia'?`Você está na versão mais nova (${a.atual}).`:a.estado==='disponivel'?`Versão ${a.nova} disponível (você está na ${a.atual}).`:a.estado==='falhou'?(a.erro||'Não deu para procurar agora.'):['baixando','instalando','reiniciando'].includes(a.estado)?`Atualizando para a ${a.nova}…`:`Versão ${a.atual}. O Th Boost procura sozinho quando abre e a cada 6 horas.`;
+  $('#atuAgora').disabled=['procurando','baixando','instalando','reiniciando'].includes(a.estado)}
+ const ativo=['disponivel','baixando','instalando','reiniciando'].includes(a.estado);
+ if(!ativo||(a.estado==='disponivel'&&atuDepois===a.nova&&!a.erro)){box.hidden=true;return}
+ if(box.hidden){box.hidden=false;box.classList.remove('toca');void box.offsetWidth;box.classList.add('toca')}
+ const ed=a.estado;$('#atuTit').textContent=ed==='disponivel'?'O dono atualizou o Th Boost':ed==='baixando'?'Baixando a versão nova…':ed==='instalando'?'Instalando a versão nova…':'Reiniciando o Th Boost…';
+ $('#atuTx').textContent=ed==='disponivel'?`Versão ${a.nova} disponível (você está na ${a.atual}). Clique em Atualizar ${a.modo==='link'?'para baixar a versão nova.':'para ir para a versão nova.'}`:ed==='baixando'?`Versão ${a.nova}: ${a.pct||0}%`:ed==='instalando'?'Conferindo e trocando os arquivos. A versão atual fica guardada na pasta "versao_anterior".':'A janela volta sozinha em alguns segundos.';
+ const nv=ed==='disponivel'?(a.novidades||[]):[],ul=$('#atuNov');ul.innerHTML=nv.map(x=>`<li>${esc(x)}</li>`).join('');ul.hidden=!nv.length;
+ $('#atuBar').hidden=!['baixando','instalando'].includes(ed);$('#atuPct').style.width=(ed==='instalando'?100:(a.pct||0))+'%';
+ $('#atuErr').hidden=!a.erro||ed!=='disponivel';$('#atuErr').textContent=a.erro||'';
+ const bts=ed==='disponivel';$('#atuSim').hidden=!bts;$('#atuNao').hidden=!bts;$('#atuX').hidden=!bts;$('#atuSim').textContent=a.erro?'Tentar de novo':'Atualizar';
+ if(ed==='reiniciando'&&!atuReinicio){atuReinicio=true;atuEspera()}}
+/* o Th Boost antigo fecha e o novo abre na mesma porta: quando o antigo some e o novo responde, recarrega a janela */
+function atuEspera(){const t0=Date.now();const passo=async()=>{let caiu=false;try{const r=await fetch('/api/ping?k='+K,{cache:'no-store'});if(!r.ok)caiu=true}catch(e){caiu=true}
+  if(caiu){try{const r2=await fetch('/',{cache:'no-store'});if(r2.ok){location.reload();return}}catch(e){}}
+  if(Date.now()-t0<45000)setTimeout(passo,800);else $('#atuTx').textContent='Demorou mais que o normal. Feche e abra o Th Boost pelo atalho.'};setTimeout(passo,1500)}
 function atualizar(s){
+ atuMostra(s.atu);
  /* avisos novos */
  const mx=s.hist.length?s.hist[0].id:0;
  if(ultMsg===null)ultMsg=mx;else if(mx>ultMsg){const nv=s.hist.filter(h=>h.id>ultMsg).reverse();nv.forEach(h=>toast(h.t));ultMsg=mx;aposMsg(nv)}
@@ -2778,7 +2834,7 @@ setInterval(()=>{$('#rel').textContent=new Date().toLocaleTimeString('pt-BR')},5
 let falhas=0;
 function conectar(){const es=new EventSource('/api/fluxo?k='+K);
  es.onmessage=(e)=>{falhas=0;S=JSON.parse(e.data);atualizar(S)};
- es.onerror=()=>{falhas++;if(falhas>=4){es.close();$('#icOff').innerHTML=ico('x');$('#off').classList.add('on')}}}
+ es.onerror=()=>{falhas++;if(falhas>=4&&!atuReinicio){es.close();$('#icOff').innerHTML=ico('x');$('#off').classList.add('on')}}}
 conectar();
 
 /* entrada */

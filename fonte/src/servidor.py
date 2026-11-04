@@ -34,6 +34,8 @@ def carregar_config():
             CONFIG[k] = dados[k]
     if isinstance(dados.get("auto_jogo"), bool):
         CONFIG["auto_jogo"] = dados["auto_jogo"]
+    if isinstance(dados.get("avisar_atualizacao"), bool):
+        CONFIG["avisar_atualizacao"] = dados["avisar_atualizacao"]
     nome = _nome_limpo(dados.get("nome"))
     if nome:
         CONFIG["nome"] = nome
@@ -239,7 +241,7 @@ def _rodar_ps(roteiro, prefixo, extra_env, oculto=True):
         return None
 
 
-VERSAO = "v8.9"
+VERSAO = "v9.0"
 PORTA = 0
 TOKEN = secrets.token_urlsafe(24)
 TRAVA = threading.Lock()
@@ -253,7 +255,7 @@ def _contar_processos():
 
 
 class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, FerramentasMixin, MemoriaMixin, CpuMixin,
-             OverclockMixin, CpuPerfilMixin, MouseIdMixin):
+             OverclockMixin, CpuPerfilMixin, MouseIdMixin, AtualizaMixin):
     """Guarda tudo o que a interface mostra e executa as ações pedidas por ela."""
 
     def __init__(self):
@@ -292,6 +294,7 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
         threading.Thread(target=self._vigiar_jogos, daemon=True).start()
         threading.Thread(target=self._vigiar_cpu, daemon=True).start()
         self.oc_iniciar_estado()
+        self.atu_iniciar_estado()
 
     # ----- mensagens (viram avisos e histórico na tela) -----
 
@@ -477,6 +480,7 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
             "hist": hist, "serie": {k: list(v) for k, v in self.serie.items()},
             "aj": self.aj, "mouse_vel": self.mouse_vel,
             "segundo_plano": CONFIG["segundo_plano"],
+            "atu": self.atu_snapshot(),
         })
         return a
 
@@ -770,6 +774,18 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
                 self.msg("Segundo plano ligado: ao fechar a janela, o Th Boost continua rodando escondido.")
             else:
                 self.msg("Segundo plano desligado: ao fechar a janela, o Th Boost encerra.")
+        elif nome == "atu_procurar":
+            threading.Thread(target=self.atu_procurar, daemon=True).start()
+        elif nome == "atu_instalar":
+            self.atu_instalar()
+        elif nome == "atu_avisar":
+            ligar = dados.get("ligar")
+            if not isinstance(ligar, bool):
+                raise ValueError("pedido inválido")
+            CONFIG["avisar_atualizacao"] = ligar
+            salvar_config()
+            if ligar:
+                threading.Thread(target=self.atu_procurar, daemon=True).start()
         elif nome == "abrir_janela":
             self.reabrir_janela()
         elif nome == "encerrar_tudo":
@@ -1331,7 +1347,8 @@ def principal():
         if inst:
             pedir_instancia(inst, "encerrar_tudo")
         return
-    if USAR_INSTANCIA:  # já existe um Th Boost aberto (por exemplo em segundo plano): só abre a janela dele
+    reinicio = "--reinicio" in sys.argv[1:]  # v9.0: aberto pela atualização; o antigo está fechando
+    if USAR_INSTANCIA and not reinicio:  # já existe um Th Boost aberto (por exemplo em segundo plano): só abre a janela dele
         inst = instancia_ativa()
         if inst and pedir_instancia(inst, "abrir_janela"):
             return
@@ -1342,9 +1359,15 @@ def principal():
             pass
     esconder_console()
     porta_fixa = int(os.environ.get("TOTIMIZE_PORTA", "0") or 0)
-    try:
-        servidor = Servidor(("127.0.0.1", porta_fixa or PORTA_PREFERIDA), Manipulador)
-    except OSError:  # porta ocupada (por exemplo, outro Th Boost aberto): usa qualquer outra livre
+    servidor = None
+    for _ in range(60 if reinicio else 1):  # depois de atualizar, espera o Th Boost antigo soltar a porta (até ~18 s)
+        try:
+            servidor = Servidor(("127.0.0.1", porta_fixa or PORTA_PREFERIDA), Manipulador)
+            break
+        except OSError:
+            if reinicio:
+                time.sleep(0.3)
+    if servidor is None:  # porta ocupada (por exemplo, outro Th Boost aberto): usa qualquer outra livre
         servidor = Servidor(("127.0.0.1", 0), Manipulador)
     PORTA = servidor.server_address[1]
     HTML_PRONTO = HTML.replace("__TOKEN__", TOKEN)
@@ -1356,11 +1379,19 @@ def principal():
     if CONFIG["segundo_plano"]:
         NUCLEO.iniciar_bandeja()
     url = f"http://127.0.0.1:{PORTA}/"
-    if not os.environ.get("TOTIMIZE_SEM_JANELA"):
-        abrir_janela(url)
+    if os.environ.get("TOTIMIZE_SEM_JANELA"):
+        print("Th Boost em", url, "token", TOKEN, flush=True)
+    elif reinicio and PORTA == (porta_fixa or PORTA_PREFERIDA):
+        # a janela que estava aberta se recarrega sozinha; se em 15 s ninguém voltou, abre uma nova
+        def janela_de_reserva():
+            time.sleep(15)
+            if not CLIENTES["ja_teve"]:
+                NUCLEO.reabrir_janela()
+        threading.Thread(target=janela_de_reserva, daemon=True).start()
         ajustar_icone_barra()
     else:
-        print("Th Boost em", url, "token", TOKEN, flush=True)
+        abrir_janela(url)
+        ajustar_icone_barra()
     try:
         vigiar()
     except KeyboardInterrupt:

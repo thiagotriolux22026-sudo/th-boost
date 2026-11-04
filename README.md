@@ -1,14 +1,19 @@
 # Th Boost
 
-Painel de otimização e monitoramento para Windows (preto e azul). Versão atual: **v8.9**.
+Painel de otimização e monitoramento para Windows (preto e azul). Versão atual: **v9.0**.
 
 ## Como baixar (em qualquer computador, sem login)
 
 1. Clique neste link para baixar o ZIP pronto:
-   **[⬇ Baixar o Th Boost v8.9](https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v8.9.zip)**
-   (endereço: https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v8.9.zip)
-2. Clique com o botão direito no arquivo baixado e escolha **Extrair para "Th-Boost-v8.9\"**.
+   **[⬇ Baixar o Th Boost v9.0](https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.0.zip)**
+   (endereço: https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.0.zip)
+2. Clique com o botão direito no arquivo baixado e escolha **Extrair para "Th-Boost-v9.0\"**.
 3. Abra a pasta e leia o **LEIAME.txt** (ele explica tudo com calma).
+
+## Novidades da v9.0
+
+- **Aviso de versão nova:** quando sair uma versão nova, aparece no meio da tela *"O dono atualizou o Th Boost"*, com as novidades e o botão **Atualizar**. Ele baixa a versão nova (só deste repositório), confere se o arquivo veio certo, guarda a versão atual na pasta `versao_anterior` e abre o programa de novo sozinho. Dá para desligar em **Configurações › Atualizações**.
+- Quem está na v8.9 ou antes precisa baixar a v9.0 uma vez pelo link acima; da v9.0 em diante, o aviso cuida disso.
 
 ## Novidades da v8.9
 
@@ -33,4 +38,13 @@ Para levar a outro computador sem instalar Python, dê dois cliques em **Gerar e
 | Pasta | O que é |
 |---|---|
 | `download/` | O ZIP pronto de cada versão. É isso que se baixa. |
+| `versao.json` | Diz qual é a versão mais nova. O Th Boost (v9.0 em diante) lê este arquivo para mostrar o aviso de atualização. |
 | `fonte/` | O código-fonte, como cópia de segurança. `python build.py` (dentro de `fonte`) gera o `th_boost.py` completo na pasta `out`. |
+
+## Como publicar uma versão nova (para o dono)
+
+1. Coloque o ZIP novo em `download/` (por exemplo `Th-Boost-v9.1.zip`) e troque o link no começo deste README.
+2. No `versao.json`, troque `versao`, `zip`, `tamanho`, `data`, as `novidades` e o `sha256` (a impressão digital do ZIP; no Windows: `certutil -hashfile Th-Boost-v9.1.zip SHA256`).
+3. Envie tudo junto. Em até alguns minutos, quem estiver com o Th Boost aberto vê o aviso (ele procura ao abrir e a cada 6 horas).
+
+Se o `sha256` não bater com o ZIP, o programa não atualiza e não troca nada. **Proteja esta conta do GitHub com verificação em duas etapas:** quem conseguir publicar aqui consegue mandar uma versão para todo mundo que usa o Th Boost.

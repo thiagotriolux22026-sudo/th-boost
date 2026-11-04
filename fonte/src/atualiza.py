@@ -1,0 +1,308 @@
+# ---------------- v9.0: aviso de versão nova (o dono publicou no GitHub) e atualização com um clique ----------------
+# O programa lê de tempos em tempos um arquivo pequeno do repositório do dono (versao.json). Se a versão de lá for mais
+# nova, aparece o aviso "O dono atualizou o Th Boost". Ao clicar em Atualizar:
+#   1) baixa o ZIP SÓ do repositório do dono no GitHub (qualquer outro endereço é recusado, até nos redirecionamentos);
+#   2) confere a "impressão digital" do ZIP (SHA-256 publicada no versao.json) e o que tem dentro (só os arquivos do
+#      Th Boost, e o th_boost.py precisa ser Python válido e dizer a mesma versão);
+#   3) guarda os arquivos atuais em "versao_anterior" e troca pelos novos;
+#   4) abre o Th Boost novo e fecha o antigo; a janela se recarrega sozinha.
+# Nada do computador é enviado: é só um download, como abrir uma página.
+
+ATU_REPO = "thiagotriolux22026-sudo/th-boost"
+ATU_URL = f"https://raw.githubusercontent.com/{ATU_REPO}/main/versao.json"
+ATU_PAGINA = f"https://github.com/{ATU_REPO}"
+ATU_PREFIXOS = (f"https://github.com/{ATU_REPO}/", f"https://raw.githubusercontent.com/{ATU_REPO}/")
+ATU_HOSTS = ("github.com", "raw.githubusercontent.com", "objects.githubusercontent.com")
+ATU_ARQUIVOS = ("th_boost.py", "Th Boost.ico", "LEIAME.txt", "Abrir Th Boost.bat",
+                "Criar atalho na area de trabalho.bat", "Encerrar Th Boost.bat", "Gerar executavel.bat")
+ATU_MAX_ZIP = 40 * 1024 * 1024
+ATU_MAX_ARQ = 25 * 1024 * 1024
+ATU_INTERVALO = 6 * 3600  # procura de novo a cada 6 horas enquanto o programa estiver aberto
+_RE_SHA = re.compile(r"[0-9a-f]{64}")
+
+
+def _atu_teste():
+    """Só para os testes automáticos: um "GitHub de mentira" no próprio computador (127.0.0.1). Fora disso, nada muda."""
+    u = os.environ.get("THBOOST_ATU_URL", "")
+    return u if re.fullmatch(r"http://127\.0\.0\.1:\d{2,5}/[\w./-]*", u) else ""
+
+
+def atu_url_info():
+    return _atu_teste() or ATU_URL
+
+
+def atu_link_ok(url):
+    """O ZIP só pode vir do repositório do dono (ou do GitHub de mentira dos testes)."""
+    if not isinstance(url, str) or len(url) > 400 or any(c in url for c in "\\\r\n\t \"'<>"):
+        return False
+    t = _atu_teste()
+    if t and url.startswith(t.split("/", 3)[0] + "//" + t.split("/", 3)[2] + "/"):
+        return True
+    return url.startswith(ATU_PREFIXOS) and ".." not in url
+
+
+def versao_tupla(v):
+    """'v9.0' -> (9, 0, 0); 'v8.10' é mais nova que 'v8.9'. None se não for uma versão."""
+    m = re.fullmatch(r"v?(\d{1,3})(?:\.(\d{1,3}))?(?:\.(\d{1,3}))?", str(v or "").strip())
+    return tuple(int(x or 0) for x in m.groups()) if m else None
+
+
+def atu_mais_nova(remota, local):
+    a, b = versao_tupla(remota), versao_tupla(local)
+    return bool(a and b and a > b)
+
+
+def atu_valida_info(d):
+    """Confere o versao.json publicado. Devolve uma cópia limpa ou levanta ValueError."""
+    if not isinstance(d, dict):
+        raise ValueError("versao.json inválido")
+    v = d.get("versao")
+    if not isinstance(v, str) or not versao_tupla(v):
+        raise ValueError("versão inválida no versao.json")
+    z, sha = d.get("zip"), str(d.get("sha256") or "").lower()
+    if not atu_link_ok(z):
+        raise ValueError("o endereço do ZIP não é do repositório do Th Boost")
+    if not _RE_SHA.fullmatch(sha):
+        raise ValueError("falta a impressão digital (SHA-256) do ZIP")
+    tam = d.get("tamanho")
+    if tam is not None and (not isinstance(tam, int) or isinstance(tam, bool) or not 0 < tam <= ATU_MAX_ZIP):
+        raise ValueError("tamanho inválido no versao.json")
+    nov = d.get("novidades") if isinstance(d.get("novidades"), list) else []
+    nov = [re.sub(r"\s+", " ", re.sub(r"[\x00-\x1f\x7f]", "", x)).strip()[:160] for x in nov if isinstance(x, str)][:8]
+    v = v.strip()
+    return {"versao": v if v.startswith("v") else "v" + v, "zip": z, "sha256": sha, "tamanho": tam, "novidades": [x for x in nov if x],
+            "data": str(d.get("data") or "")[:20]}
+
+
+class _AtuRedireciona(urllib.request.HTTPRedirectHandler):
+    """Segue o redirecionamento do GitHub (github.com -> raw.githubusercontent.com) e nenhum outro."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        p = urllib.parse.urlparse(newurl)
+        t = _atu_teste()
+        teste_ok = t and newurl.startswith(t.split("/", 3)[0] + "//" + t.split("/", 3)[2] + "/")
+        if not teste_ok and (p.scheme != "https" or p.hostname not in ATU_HOSTS):
+            raise urllib.error.HTTPError(newurl, code, "redirecionamento recusado", headers, fp)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def atu_baixar(url, limite, progresso=None, timeout=30):
+    """Baixa até 'limite' bytes (mais que isso é recusado). Usa o proxy do Windows, se houver."""
+    if not atu_link_ok(url) and url != atu_url_info():
+        raise ValueError("endereço recusado")
+    abridor = urllib.request.build_opener(_AtuRedireciona)
+    req = urllib.request.Request(url, headers={"User-Agent": f"ThBoost/{VERSAO}", "Cache-Control": "no-cache"})
+    partes, total = [], 0
+    with abridor.open(req, timeout=timeout) as r:
+        esperado = int(r.headers.get("Content-Length") or 0)
+        if esperado > limite:
+            raise ValueError("arquivo grande demais")
+        while True:
+            bloco = r.read(65536)
+            if not bloco:
+                break
+            total += len(bloco)
+            if total > limite:
+                raise ValueError("arquivo grande demais")
+            partes.append(bloco)
+            if progresso and esperado:
+                progresso(min(99, int(total * 100 / esperado)))
+    return b"".join(partes)
+
+
+def atu_buscar_info():
+    dados = atu_baixar(atu_url_info(), 65536, timeout=15)
+    return atu_valida_info(json.loads(dados.decode("utf-8-sig")))
+
+
+def atu_conferir_zip(dados, info):
+    """Confere o ZIP baixado. Devolve {nome: conteúdo} dos arquivos do Th Boost, ou levanta ValueError."""
+    if hashlib.sha256(dados).hexdigest() != info["sha256"]:
+        raise ValueError("a impressão digital do ZIP não confere (download incompleto ou arquivo trocado)")
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(dados))
+    except zipfile.BadZipFile:
+        raise ValueError("o ZIP baixado está estragado")
+    nomes = [i for i in zf.infolist() if not i.is_dir()]
+    if not nomes or len(nomes) > 40:
+        raise ValueError("o ZIP não parece do Th Boost")
+    topo = {i.filename.split("/")[0] for i in nomes}
+    pref = (next(iter(topo)) + "/") if len(topo) == 1 and all("/" in i.filename for i in nomes) else ""
+    saida = {}
+    for i in nomes:
+        n = i.filename[len(pref):]
+        if n not in ATU_ARQUIVOS:
+            continue  # arquivos extras do ZIP são ignorados; só os do Th Boost são trocados
+        if i.file_size > ATU_MAX_ARQ:
+            raise ValueError("arquivo grande demais dentro do ZIP")
+        with zf.open(i) as f:
+            conteudo = f.read(ATU_MAX_ARQ + 1)
+        if len(conteudo) > ATU_MAX_ARQ:
+            raise ValueError("arquivo grande demais dentro do ZIP")
+        saida[n] = conteudo
+    if "th_boost.py" not in saida:
+        raise ValueError("o ZIP não tem o th_boost.py")
+    try:
+        texto = saida["th_boost.py"].decode("utf-8")
+        compile(texto, "th_boost.py", "exec")
+    except (UnicodeDecodeError, SyntaxError, ValueError):
+        raise ValueError("o th_boost.py novo está com defeito; nada foi trocado")
+    m = re.search(r'^VERSAO = "(v[\d.]+)"', texto, re.M)
+    if not m or versao_tupla(m.group(1)) != versao_tupla(info["versao"]):
+        raise ValueError("a versão dentro do ZIP não é a anunciada; nada foi trocado")
+    return saida
+
+
+def atu_trocar_arquivos(arquivos, pasta):
+    """Guarda os arquivos atuais em 'versao_anterior' e troca pelos novos. Se algo falhar no meio, volta tudo."""
+    copia = os.path.join(pasta, "versao_anterior")
+    os.makedirs(copia, exist_ok=True)
+    for n in arquivos:
+        atual = os.path.join(pasta, n)
+        if os.path.isfile(atual):
+            shutil.copy2(atual, os.path.join(copia, n))
+    novos = []
+    try:
+        for n, conteudo in arquivos.items():
+            tmp = os.path.join(pasta, n + ".novo")
+            with open(tmp, "wb") as f:
+                f.write(conteudo)
+            novos.append(tmp)
+        trocados = []
+        for n in arquivos:
+            os.replace(os.path.join(pasta, n + ".novo"), os.path.join(pasta, n))
+            trocados.append(n)
+    except OSError:
+        for n in arquivos:  # volta o que já tinha sido trocado
+            antigo = os.path.join(copia, n)
+            if os.path.isfile(antigo):
+                try:
+                    shutil.copy2(antigo, os.path.join(pasta, n))
+                except OSError:
+                    pass
+        for t in novos:
+            try:
+                os.remove(t)
+            except OSError:
+                pass
+        raise
+    return trocados
+
+
+def atu_reabrir(versao_antiga):
+    """Abre o Th Boost novo (que espera este aqui fechar) e devolve True se conseguiu."""
+    script = os.path.join(pasta_do_programa(), "th_boost.py")
+    exe = sys.executable
+    if IS_WIN and os.path.basename(exe).lower() == "python.exe":
+        w = os.path.join(os.path.dirname(exe), "pythonw.exe")
+        if os.path.isfile(w):
+            exe = w
+    args = [exe, script, "--reinicio", "--de", versao_antiga]
+    opc = {"cwd": pasta_do_programa(), "stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL,
+           "stderr": subprocess.DEVNULL, "close_fds": True}
+    if IS_WIN:
+        opc["creationflags"] = 0x00000008 | 0x00000200 | 0x08000000  # DETACHED_PROCESS | NEW_PROCESS_GROUP | NO_WINDOW
+    else:
+        opc["start_new_session"] = True
+    try:
+        subprocess.Popen(args, **opc)
+        return True
+    except OSError:
+        return False
+
+
+def atu_de_argv():
+    """Versão anterior quando o programa foi reaberto por uma atualização ('--de v8.9')."""
+    a = sys.argv[1:]
+    if "--de" in a:
+        i = a.index("--de")
+        if i + 1 < len(a) and versao_tupla(a[i + 1]):
+            return a[i + 1][:12]
+    return ""
+
+
+class AtualizaMixin:
+    """Estado do aviso de versão nova (vai para a tela) e as ações Procurar / Atualizar."""
+
+    def atu_iniciar_estado(self):
+        congelado = bool(getattr(sys, "frozen", False))  # rodando como .exe: troca de arquivo não serve, abre o link
+        self.atu = {"estado": "parado", "atual": VERSAO, "nova": "", "novidades": [], "pct": 0, "erro": "",
+                    "quando": 0, "de": atu_de_argv(), "modo": "link" if congelado else "auto"}
+        self.atu_info = None
+        self._atu_trava = threading.Lock()
+        if not os.environ.get("THBOOST_SEM_ATU"):
+            threading.Thread(target=self._atu_vigiar, daemon=True).start()
+
+    def atu_snapshot(self):
+        return dict(self.atu, novidades=list(self.atu["novidades"]), avisar=CONFIG.get("avisar_atualizacao", True) is not False)
+
+    def _atu_vigiar(self):
+        time.sleep(float(os.environ.get("THBOOST_ATU_ESPERA", "20")))  # deixa o programa abrir primeiro
+        while not self.fechando:
+            if CONFIG.get("avisar_atualizacao", True) is not False and self.atu["estado"] in ("parado", "em_dia", "disponivel", "falhou"):
+                self.atu_procurar(manual=False)
+            time.sleep(ATU_INTERVALO)
+
+    def atu_procurar(self, manual=True):
+        if not self._atu_trava.acquire(blocking=False):
+            return
+        try:
+            if self.atu["estado"] in ("baixando", "instalando", "reiniciando"):
+                return
+            antes = self.atu["estado"]
+            self.atu.update(estado="procurando", erro="")
+            try:
+                info = atu_buscar_info()
+            except Exception as e:
+                # procura automática sem internet: fica quieto; a pedido, conta o que houve
+                self.atu.update(estado="falhou" if manual else (antes if antes != "procurando" else "parado"),
+                                erro="Não deu para procurar agora (sem internet?)." if manual else "")
+                return
+            self.atu["quando"] = time.time()
+            if atu_mais_nova(info["versao"], VERSAO):
+                self.atu_info = info
+                self.atu.update(estado="disponivel", nova=info["versao"], novidades=info["novidades"])
+                if antes != "disponivel":
+                    self.msg(f"Versão nova do Th Boost: {info['versao']}. Clique em Atualizar no aviso.")
+            else:
+                self.atu_info = None
+                self.atu.update(estado="em_dia", nova="", novidades=[])
+        finally:
+            self._atu_trava.release()
+
+    def atu_instalar(self):
+        info = self.atu_info
+        if not info or self.atu["estado"] != "disponivel":
+            raise ValueError("não há versão nova para instalar")
+        if self.atu["modo"] == "link":  # .exe: abre a página para baixar
+            webbrowser.open(ATU_PAGINA)
+            self.msg("Abri a página do Th Boost para baixar a versão nova.")
+            return
+        self.atu.update(estado="baixando", pct=0, erro="")
+
+        def tarefa():
+            info2 = info
+            try:
+                try:  # lê o versao.json de novo: se o dono publicou outra versão (ou corrigiu o ZIP), já pega a certa
+                    novo = atu_buscar_info()
+                    if atu_mais_nova(novo["versao"], VERSAO):
+                        info2 = self.atu_info = novo
+                        self.atu.update(nova=novo["versao"], novidades=novo["novidades"])
+                except Exception:
+                    pass
+                dados = atu_baixar(info2["zip"], ATU_MAX_ZIP, progresso=lambda p: self.atu.update(pct=p), timeout=60)
+                self.atu.update(estado="instalando", pct=100)
+                arquivos = atu_conferir_zip(dados, info2)
+                atu_trocar_arquivos(arquivos, pasta_do_programa())
+            except Exception as e:
+                motivo = str(e) if isinstance(e, ValueError) else "não consegui baixar ou gravar os arquivos (internet ou pasta sem permissão)"
+                self.atu.update(estado="disponivel", erro=f"A atualização não deu certo: {motivo}. O Th Boost continua na {VERSAO}.")
+                return
+            self.atu.update(estado="reiniciando")
+            if not atu_reabrir(VERSAO):
+                self.atu.update(estado="disponivel", erro="Os arquivos novos foram instalados, mas não consegui abrir o Th Boost de novo. Feche e abra pelo atalho.")
+                return
+            time.sleep(1.2)  # dá tempo da tela receber o "reiniciando"
+            self.encerrar()
+
+        threading.Thread(target=tarefa, daemon=True).start()
