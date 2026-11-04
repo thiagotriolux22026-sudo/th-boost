@@ -11,7 +11,7 @@ _UNINSTALL = [("HKLM", r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
 _PROG_PROTEGIDO = re.compile(
     r"(microsoft (visual c\+\+|\.net|windows desktop runtime|edge webview2)|webview2|directx|nvidia (graphics driver|physx|hd audio)|"
     r"amd (software|chipset)|intel\(r\) (chipset|management|graphics|serial|rapid)|realtek|windows (driver|sdk)|"
-    r"microsoft update health|vulkan run ?time)", re.IGNORECASE)
+    r"microsoft update health|vulkan run ?time|python \d|python launcher|py launcher)", re.IGNORECASE)  # v9.1: o Th Boost roda no Python
 
 ATALHOS = [
     # id, nome, descrição, alvo (arquivo/URI aberto pelo Windows), grupo
@@ -226,7 +226,7 @@ class FerramentasMixin:
         if l is None:
             raise ValueError("link inválido")
         try:
-            webbrowser.open(l[2])
+            abrir_link(l[2])
             self.msg(f"Abrindo o site oficial ({l[1]})...")
         except Exception:
             self.msg("Não consegui abrir o navegador.")

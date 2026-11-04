@@ -151,7 +151,7 @@ def _pontos_restauracao():
     return sorted(res, key=lambda r: -r["ts"])[:12]
 
 
-def criar_ponto_manual():
+def criar_ponto_manual(descricao="Th Boost (manual)"):
     """Cria um ponto de restauração agora. O Windows normalmente só deixa criar um por dia: a trava é levantada só durante a criação."""
     if REG is None:
         return False, "Só funciona no Windows."
@@ -162,7 +162,8 @@ def criar_ponto_manual():
     except OSError:
         pass
     try:
-        cod, saida = powershell("Checkpoint-Computer -Description 'Th Boost (manual)' -RestorePointType MODIFY_SETTINGS", tempo=240)
+        desc = re.sub(r"[^\w ()\-]", "", descricao)[:60] or "Th Boost"
+        cod, saida = powershell(f"Checkpoint-Computer -Description '{desc}' -RestorePointType MODIFY_SETTINGS", tempo=240)
     finally:
         try:
             if antigo is None:
@@ -337,15 +338,15 @@ class ManutencaoMixin:
 
     def _cx_sfc(self, ctx):
         cod, saida = _executar_longo(["sfc", "/scannow"], 3600, ctx["parar"])
-        if cod == -1:
-            return "Interrompido. Dá para rodar de novo quando quiser.", "pulado"
+        if cod in (-1, -2):
+            return ("Interrompido." if cod == -1 else "Passou de 1 hora e eu parei.") + " Dá para rodar de novo quando quiser.", "pulado"
         t = (saida or "").replace("\x00", "").lower()
-        if re.search(r"did not find any integrity|n[aã]o encontrou nenhuma viola", t):
+        if re.search(r"did not find any integrity|n.o encontrou nenhuma viola", t):
             return "Nenhum arquivo do Windows estava danificado.", "ok"
-        if re.search(r"unable to fix|n[aã]o p[oô]de reparar|n[aã]o foi poss[ií]vel reparar|n[aã]o conseguiu reparar", t):
+        if re.search(r"unable to fix|n.o p.de (reparar|corrigir)|n.o foi poss.vel (reparar|corrigir)|n.o conseguiu (reparar|corrigir)", t):
             return ("Há arquivos danificados que o SFC não conseguiu consertar. Rode “Reparar a imagem do Windows” e depois "
                     "este de novo."), "erro"
-        if re.search(r"successfully repaired|reparou com [eê]xito|reparados com [eê]xito|com [eê]xito", t):
+        if re.search(r"successfully repaired|reparou com .xito|reparados com .xito|os reparou|corrigiu", t):
             ctx["reiniciar"] = True
             return "Achei arquivos danificados e consertei. Reinicie o PC para terminar.", "ok"
         if cod == 0:
@@ -357,8 +358,8 @@ class ManutencaoMixin:
 
     def _cx_dism(self, ctx):
         cod, saida = _executar_longo(["DISM.exe", "/Online", "/Cleanup-Image", "/RestoreHealth"], 3600, ctx["parar"])
-        if cod == -1:
-            return "Interrompido. Dá para rodar de novo quando quiser.", "pulado"
+        if cod in (-1, -2):
+            return ("Interrompido." if cod == -1 else "Passou de 1 hora e eu parei.") + " Dá para rodar de novo quando quiser.", "pulado"
         if cod == 0:
             ctx["reiniciar"] = True
             return "A imagem do Windows está íntegra. Rode o “Reparar arquivos do Windows” agora e reinicie.", "ok"
@@ -370,12 +371,14 @@ class ManutencaoMixin:
     def _cx_chkdsk(self, ctx):
         letra = (os.environ.get("SystemDrive") or "C:")[:2]
         cod, saida = _executar_longo(["chkdsk", letra, "/scan"], 3600, ctx["parar"])
-        if cod == -1:
-            return "Interrompido.", "pulado"
+        if cod in (-1, -2):
+            return "Interrompido." if cod == -1 else "Passou de 1 hora e eu parei. Tente de novo com o PC parado.", "pulado"
         if cod == 0:
             return "O Windows examinou o disco e não achou problemas.", "ok"
         if cod == 1:
             return "O Windows achou e corrigiu pequenos erros no disco.", "ok"
+        if cod == 2:  # v9.1: 2 = só sobrou uma faxina interna que pede /f; não é erro do disco
+            return "O disco está bom. O Windows só sugeriu uma faxina interna, que acontece sozinha com o tempo.", "ok"
         return ("O disco tem erros que só dá para consertar ao reiniciar. Use “Reparar o disco ao reiniciar”. "
                 "Se o aviso voltar, faça cópia dos seus arquivos: o disco pode estar falhando."), "erro"
 
@@ -515,8 +518,7 @@ class ManutencaoMixin:
         return ("IP renovado.", "ok") if renovar_ip() else ("O IP não renovou (pode ser rede sem DHCP).", "pulado")
 
     def _cx_rede_pilha(self, ctx):
-        texto = resetar_rede()
-        ok = "reinicie" in texto.lower()
+        texto, ok = resetar_rede()
         if ok:
             ctx["reiniciar"] = True
         return texto, ("ok" if ok else "erro")
@@ -749,8 +751,8 @@ class ManutencaoMixin:
             except OSError as erro:
                 return f"Não consegui criar a pasta no destino ({erro}).", "erro"
             cod, saida = _executar_longo(["pnputil", "/export-driver", "*", pasta], 1200, ctx["parar"])
-            if cod == -1:
-                return "Interrompido.", "pulado"
+            if cod in (-1, -2):
+                return "Interrompido." if cod == -1 else "Demorou demais e eu parei.", "pulado"
             if cod != 0:
                 return "O Windows não exportou os drivers.", "erro"
             try:
@@ -799,22 +801,36 @@ class ManutencaoMixin:
         if self.trab_iniciar("backup", "ajustes", "Backup dos ajustes", [("ajustes", "Guardando as configurações do Th Boost", passo, False)]):
             self.msg("Guardando as configurações do Th Boost...")
 
-    def backups_ajustes_listar(self):
-        pasta = self._pasta_backups_ajustes()
+    def _pastas_com_backups(self):
+        """v9.1: a pasta ao lado do programa e também o destino do backup (pen drive/HD): assim um backup sobrevive
+        a apagar a pasta do Th Boost ou a trocar de PC."""
         res = []
-        if pasta:
-            for nome in sorted(os.listdir(pasta), reverse=True)[:8]:
-                if re.fullmatch(r"ThBoost-ajustes-\d{8}-\d{6}\.zip", nome):
-                    st = os.stat(os.path.join(pasta, nome))
-                    res.append({"nome": nome, "quando": datetime.fromtimestamp(st.st_mtime).strftime("%d/%m/%Y %H:%M"),
-                                "kb": max(1, st.st_size // 1024)})
+        for p in (self._pasta_backups_ajustes(), self._bk_raiz()):
+            if p and os.path.isdir(p) and p not in res:
+                res.append(p)
         return res
+
+    def backups_ajustes_listar(self):
+        vistos, res = set(), []
+        for pasta in self._pastas_com_backups():
+            try:
+                nomes = os.listdir(pasta)
+            except OSError:
+                continue
+            for nome in nomes:
+                if nome in vistos or not re.fullmatch(r"ThBoost-ajustes-\d{8}-\d{6}\.zip", nome):
+                    continue
+                vistos.add(nome)
+                st = os.stat(os.path.join(pasta, nome))
+                res.append({"nome": nome, "quando": datetime.fromtimestamp(st.st_mtime).strftime("%d/%m/%Y %H:%M"),
+                            "kb": max(1, st.st_size // 1024)})
+        return sorted(res, key=lambda r: r["nome"], reverse=True)[:8]
 
     def backup_ajustes_importar(self, nome):
         if not isinstance(nome, str) or not re.fullmatch(r"ThBoost-ajustes-\d{8}-\d{6}\.zip", nome):
             raise ValueError("nome inválido")
-        caminho = os.path.join(self._pasta_backups_ajustes(), nome)
-        if not os.path.isfile(caminho):
+        caminho = next((os.path.join(p, nome) for p in self._pastas_com_backups() if os.path.isfile(os.path.join(p, nome))), "")
+        if not caminho:
             return self.msg("Não achei esse backup.")
 
         def passo(ctx):
@@ -1066,7 +1082,7 @@ class ManutencaoMixin:
         if win and reinicio_pendente():
             achado("reinicio", "aviso", "Há um reinício pendente", "O Windows está esperando você reiniciar para terminar uma atualização.", None, None, "")
         for dsk in lento.get("discos") or []:
-            if str(dsk.get("HealthStatus") or "").lower() not in ("healthy", "", "0"):
+            if str(dsk.get("HealthStatus") or "").lower() in ("warning", "unhealthy", "1", "2"):  # 5/unknown não é defeito
                 achado("disco_saude", "ruim", "O disco “%s” reporta problema de saúde" % str(dsk.get("FriendlyName") or "")[:40],
                        "Faça backup dos seus arquivos agora e considere trocar o disco.", "backup", None, "Fazer backup")
         if any("hdd" in str(dsk.get("MediaType") or "").lower() or str(dsk.get("MediaType")) == "3" for dsk in lento.get("discos") or []):

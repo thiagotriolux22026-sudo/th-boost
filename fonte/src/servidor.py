@@ -21,11 +21,15 @@ def nome_da_pessoa():
 
 
 def carregar_config():
-    try:
-        with open(ARQ_CONFIG, encoding="utf-8") as f:
-            dados = json.load(f)
-    except (OSError, ValueError):
-        return
+    dados = None
+    for arq in (ARQ_CONFIG, ARQ_CONFIG + ".bak"):  # v9.1: se o arquivo estragou (queda de energia), usa a cópia anterior
+        try:
+            with open(arq, encoding="utf-8") as f:
+                dados = json.load(f)
+        except (OSError, ValueError):
+            dados = None
+        if isinstance(dados, dict):
+            break
     if not isinstance(dados, dict):
         return
     CONFIG["segundo_plano"] = dados.get("segundo_plano") is True
@@ -36,6 +40,13 @@ def carregar_config():
         CONFIG["auto_jogo"] = dados["auto_jogo"]
     if isinstance(dados.get("avisar_atualizacao"), bool):
         CONFIG["avisar_atualizacao"] = dados["avisar_atualizacao"]
+    oa = dados.get("oc_antes")
+    if isinstance(oa, dict) and all(isinstance(oa.get(k), int) and not isinstance(oa.get(k), bool) for k in ("core", "mem", "pot_mw")):
+        CONFIG["oc_antes"] = {k: oa[k] for k in ("core", "mem", "pot_mw")}
+    if isinstance(dados.get("atu_pular"), str) and versao_tupla(dados["atu_pular"]):
+        CONFIG["atu_pular"] = dados["atu_pular"][:12]
+    if isinstance(dados.get("sessao_pendente"), dict):  # validado em sessao_retomar
+        CONFIG["sessao_pendente"] = dados["sessao_pendente"]
     nome = _nome_limpo(dados.get("nome"))
     if nome:
         CONFIG["nome"] = nome
@@ -70,12 +81,32 @@ def carregar_config():
         CONFIG["proc_base"] = {"n": pb["n"], "t": float(pb.get("t") or 0), "boot": float(pb.get("boot") or 0)}
 
 
+_TRAVA_CFG = threading.Lock()
+
+
 def salvar_config():
-    try:
-        with open(ARQ_CONFIG, "w", encoding="utf-8") as f:
-            json.dump(CONFIG, f, indent=1)
-    except OSError:
-        pass  # sem permissão de escrita na pasta: vale só até fechar o programa
+    """v9.1: grava num arquivo temporário e troca de uma vez (uma queda de energia no meio não perde as configurações)
+    e guarda a versão anterior como .bak. Várias partes do programa salvam ao mesmo tempo: a trava evita mistura."""
+    with _TRAVA_CFG:
+        try:
+            try:
+                texto = json.dumps(dict(CONFIG), indent=1)
+            except RuntimeError:  # outra parte mudou a configuração no meio: tenta de novo
+                time.sleep(0.05)
+                texto = json.dumps(dict(CONFIG), indent=1)
+            tmp = ARQ_CONFIG + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write(texto)
+                f.flush()
+                os.fsync(f.fileno())
+            if os.path.isfile(ARQ_CONFIG):
+                try:
+                    shutil.copyfile(ARQ_CONFIG, ARQ_CONFIG + ".bak")
+                except OSError:
+                    pass
+            os.replace(tmp, ARQ_CONFIG)
+        except (OSError, TypeError, ValueError, RuntimeError):
+            pass  # sem permissão de escrita na pasta: vale só até fechar o programa
 
 
 def _pasta_dados():
@@ -241,7 +272,7 @@ def _rodar_ps(roteiro, prefixo, extra_env, oculto=True):
         return None
 
 
-VERSAO = "v9.0.1"
+VERSAO = "v9.1"
 PORTA = 0
 TOKEN = secrets.token_urlsafe(24)
 TRAVA = threading.Lock()
@@ -255,12 +286,14 @@ def _contar_processos():
 
 
 class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, FerramentasMixin, MemoriaMixin, CpuMixin,
-             OverclockMixin, CpuPerfilMixin, MouseIdMixin, AtualizaMixin):
+             OverclockMixin, CpuPerfilMixin, MouseIdMixin, AtualizaMixin, AutotesteMixin):
     """Guarda tudo o que a interface mostra e executa as ações pedidas por ela."""
 
     def __init__(self):
         self.mon = Monitor()
         self.mon.start()
+        self._fps_antes = None  # o que o Modo FPS On mudou (para devolver ao desligar)
+        self._fps_sumiu = 0
         self.historico = collections.deque(maxlen=40)
         self.contador_msg = 0
         self.serie = {k: collections.deque(maxlen=120) for k in ("cpu", "ram", "gpu", "down", "up")}
@@ -295,6 +328,15 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
         threading.Thread(target=self._vigiar_cpu, daemon=True).start()
         self.oc_iniciar_estado()
         self.atu_iniciar_estado()
+        self.at_iniciar_estado()
+        threading.Thread(target=self._retomar_depois, daemon=True).start()
+
+    def _retomar_depois(self):
+        time.sleep(4)  # deixa a lista de jogos e o resto carregarem
+        try:
+            self.sessao_retomar()
+        except Exception:
+            pass
 
     # ----- mensagens (viram avisos e histórico na tela) -----
 
@@ -310,6 +352,10 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
 
     def _amostrar(self):
         while not self.fechando:
+            try:
+                self._fps_conferir()
+            except Exception:
+                pass
             if self.ocioso:  # sem janela ninguém vê os números
                 time.sleep(3.0)
                 continue
@@ -368,8 +414,11 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
         try:
             a.ligar() if ligar else a.desligar()
         except OSError as erro:
-            return f"Não foi possível alterar: {erro}"
+            self.atualizar_aj()
+            return f"{a.titulo}: não foi possível alterar ({erro})."
         self.atualizar_aj()
+        if not ligar and getattr(a, "ausente_ligado", False) and a.estado() is True:
+            return f"{a.titulo}: voltou ao padrão do Windows, que já é ligado."
         if a.estado() == bool(ligar):
             extra = f" {a.nota}" if (ligar and a.nota) else ""
             return f"{a.titulo}: {'ligado' if ligar else 'desfeito'}.{extra}"
@@ -381,33 +430,46 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
             alvo, ligar = [a for a in itens if a.rec and a.estado() is False], True
             if alvo:
                 ponto_restauracao()
-        else:
-            alvo, ligar = [a for a in itens if a.estado() is True], False
+        else:  # o que já é o padrão do Windows quando o valor não existe (Modo de Jogo) não conta como "mexido"
+            alvo, ligar = [a for a in itens if a.estado() is True and not (getattr(a, "ausente_ligado", False)
+                                                                           and a.id not in _backup())], False
         if not e_admin():
             pulados = [a for a in alvo if a.precisa_admin]
             alvo = [a for a in alvo if not a.precisa_admin]
         else:
             pulados = []
-        feitos = 0
+        feitos, recusados = 0, []
         for a in alvo:
             try:
                 a.ligar() if ligar else a.desligar()
-                feitos += 1
             except OSError:
-                pulados.append(a)
+                pass
+            try:
+                certo = a.estado() == bool(ligar)  # v9.1: conta só o que o Windows confirmou
+            except Exception:
+                certo = False
+            if certo:
+                feitos += 1
+            else:
+                recusados.append(a)
         self.atualizar_aj()
         verbo = "aplicado(s)" if ligar else "restaurado(s) ao padrão"
-        texto = f"{feitos} ajuste(s) {verbo}." if feitos else ("Tudo já estava assim." if not pulados else "Nada foi alterado.")
+        texto = (f"{feitos} ajuste(s) {verbo}." if feitos
+                 else ("Tudo já estava assim." if not (pulados or recusados) else "Nada foi alterado."))
         if pulados:
             texto += f" {len(pulados)} precisa(m) de Administrador."
+        if recusados:
+            texto += (f" {len(recusados)} o Windows não aceitou: " + ", ".join(a.titulo for a in recusados[:3])
+                      + ("..." if len(recusados) > 3 else "") + ".")
         return texto
 
     def t_debloat(self, pacotes):
         if not e_admin():
             return "Remover apps precisa de Administrador. Abra o Th Boost pelo atalho."
-        ponto_restauracao()
+        ponto = ponto_restauracao()
         feitos = remover_apps(pacotes)
-        return f"{feitos} de {len(pacotes)} app(s) removido(s). Dá para reinstalar pela Microsoft Store."
+        return (f"{feitos} de {len(pacotes)} app(s) removido(s). Dá para reinstalar pela Microsoft Store."
+                + ("" if ponto else " (O Windows não criou um ponto de restauração: a Proteção do Sistema pode estar desligada.)"))
 
     def lista(self, nome):
         if nome == "energia":
@@ -423,7 +485,10 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
         if nome == "inicio":
             return {"itens": listar_inicio()}
         if nome == "apps":
-            return {"apps": listar_apps()}
+            lista, erro = listar_apps_info()
+            return {"apps": lista, "erro": erro}
+        if nome == "autoteste":
+            return {"texto": self.at_texto(), "estado": self.at["estado"]}
         if nome == "dashboard":
             return self.dashboard()
         if nome == "processos":
@@ -480,9 +545,47 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
             "hist": hist, "serie": {k: list(v) for k, v in self.serie.items()},
             "aj": self.aj, "mouse_vel": self.mouse_vel,
             "segundo_plano": CONFIG["segundo_plano"],
-            "atu": self.atu_snapshot(),
+            "atu": self.atu_snapshot(), "at": self.at_snapshot(),
         })
         return a
+
+    def _fps_voltar(self, texto):
+        """Devolve o Modo Leve e o plano de energia de antes do Modo FPS On."""
+        antes = self._fps_antes or {}
+        self._fps_antes = None
+        if not (self.sessao and self.sessao.get("leve")):  # a sessão de jogo cuida do Modo Leve dela
+            self.mon.modo_leve = bool(antes.get("leve"))
+            self.mon.forcar = True
+        if antes.get("plano") and not (self.sessao and self.sessao.get("plano_anterior")):
+            self.em_fundo(lambda: texto + " " + plano_voltar(antes["plano"]))
+        else:
+            self.msg(texto)
+
+    def _fps_conferir(self):
+        """O PresentMon parou sozinho (erro, jogo fechou o contador...): o resto do Modo FPS On também volta."""
+        if self._fps_antes is not None and not self.mon.fps_ligado and self.mon.proc_fps is None:
+            espera = getattr(self, "_fps_sumiu", 0) or time.time()
+            self._fps_sumiu = espera
+            if time.time() - espera > 4:  # dá um tempinho: ao religar rápido o leitor novo ainda está subindo
+                self._fps_sumiu = 0
+                self._fps_voltar("O contador de FPS parou, então o Modo FPS On foi desligado.")
+        else:
+            self._fps_sumiu = 0
+
+    def ocupado(self):
+        """v9.1: o que ainda está rodando e não pode ser cortado ao fechar a janela ('' = nada)."""
+        if self.atu.get("estado") in ("baixando", "instalando", "reiniciando"):
+            return "atualização"
+        if self.sessao and (self.sessao.get("pasta") or self.sessao.get("pid")):
+            return "sessão de jogo"  # só quando dá para saber que o jogo fechou; a sessão manual termina ao fechar a janela
+        if self.otim["ativo"] or self.pre["ativo"]:
+            return "otimização"
+        if self.ext["ativo"]:
+            return "otimização extrema"
+        for k, t in self.trab.items():
+            if t.get("ativo"):
+                return {"correcao": "correção", "backup": "backup", "espaco": "análise de espaço"}.get(k, "tarefa")
+        return ""
 
     # ----- tarefas em segundo plano -----
 
@@ -522,15 +625,14 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
             texto, b = self._limpar_texto(g)
             total += b
         self.estat_limpeza(total)
-        ok, _ = esvaziar_lixeira()
+        ok, _ = esvaziar_lixeira()  # aqui a pessoa confirmou numa janela que fala da lixeira
         return f"Limpeza completa: ~{tam_texto(total)} liberados" + (" e a lixeira foi esvaziada." if ok else ".")
 
     def t_ram(self):
         return liberar_ram()[1]
 
     def t_plano(self):
-        return ("Plano Alto desempenho ativado." if plano_alto_desempenho()
-                else "Plano indisponível (abra como Administrador).")
+        return plano_para_jogar()[0]
 
     def t_dns(self):
         cod, _ = executar(["ipconfig", "/flushdns"])
@@ -561,7 +663,6 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
                   ("Limpando os navegadores", lambda: self._limpar_texto("nav")),
                   ("Limpando caches de programas", lambda: self._limpar_texto("apps")),
                   ("Limpeza do Windows", lambda: self._limpar_texto("win")),
-                  ("Esvaziando a lixeira", self.t_lixeira),
                   ("Liberando a RAM", self.t_ram),
                   ("Plano de energia", self.t_plano),
                   ("Limpando o DNS", self.t_dns)]
@@ -729,14 +830,29 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
             self.msg("Modo Leve ligado." if self.mon.modo_leve else "Modo Leve desligado.")
         elif nome == "fps":
             ligar = not self.mon.fps_ligado
-            self.mon.modo_leve = ligar
-            self.mon.forcar = True
-            self.mon.ligar_fps(ligar)
+            if ligar and caminho_presentmon() is None:  # v9.1: sem o contador, o modo nem liga (antes ligava o resto pela metade)
+                self.mon.ligar_fps(True)  # só para mostrar na tela onde baixar o PresentMon
+                return self.msg("Modo FPS On precisa do PresentMon. Baixe em github.com/GameTechDev/PresentMon e coloque o .exe "
+                                "na pasta do Th Boost.")
             if ligar:
+                if self._fps_antes is None:  # religando: guarda o "antes" da primeira vez
+                    self._fps_antes = {"leve": self.mon.modo_leve, "plano": None}
+                self.mon.modo_leve = True
+                self.mon.forcar = True
+                self.mon.ligar_fps(True)
                 self.msg("Modo FPS On ligado.")
-                self.em_fundo(self.t_plano)
+
+                def plano():
+                    texto, anterior, _ = plano_para_jogar()
+                    if anterior and self._fps_antes is None:  # o Modo FPS On foi desligado enquanto o plano trocava
+                        return "Modo FPS On desligado. " + plano_voltar(anterior)
+                    if self._fps_antes is not None and anterior:
+                        self._fps_antes["plano"] = anterior
+                    return "Modo FPS On ligado. " + texto
+                self.em_fundo(plano)
             else:
-                self.msg("Modo FPS On desligado.")
+                self.mon.ligar_fps(False)
+                self._fps_voltar("Modo FPS On desligado.")
         elif nome == "oc_nivel":
             self.oc_definir(dados.get("nivel"))
         elif nome == "oc_zerar":
@@ -774,6 +890,11 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
                 self.msg("Segundo plano ligado: ao fechar a janela, o Th Boost continua rodando escondido.")
             else:
                 self.msg("Segundo plano desligado: ao fechar a janela, o Th Boost encerra.")
+        elif nome == "autoteste":
+            self.at_rodar()
+        elif nome in AT_ACOES:
+            self.msg("Corrigindo...")
+            self.em_fundo(pagefile_automatico)
         elif nome == "atu_procurar":
             threading.Thread(target=self.atu_procurar, daemon=True).start()
         elif nome == "atu_instalar":
@@ -926,13 +1047,13 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
             self.em_fundo(lambda: ativar_plano(chave))
         elif nome == "dns_trocar":
             modo = dados.get("modo")
-            if modo not in ("auto", "google", "cloudflare"):
+            if modo not in ("auto", "google", "cloudflare", "antes"):
                 raise ValueError("DNS inválido")
             self.msg("Trocando o DNS...")
             self.em_fundo(lambda: dns_trocar(modo))
         elif nome == "rede_reset":
             self.msg("Resetando a rede...")
-            self.em_fundo(resetar_rede)
+            self.em_fundo(lambda: resetar_rede()[0])
         elif nome == "inicio":
             ident, ligar = dados.get("id"), dados.get("ligar")
             if not isinstance(ident, str) or not isinstance(ligar, bool):
@@ -992,6 +1113,12 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
             self.sessao_fim("O Th Boost fechou")  # devolve plano de energia e serviços pausados durante um jogo
         except Exception:
             pass
+        try:
+            antes = self._fps_antes or {}
+            if antes.get("plano"):
+                plano_voltar(antes["plano"])  # o Modo FPS On tinha trocado o plano de energia
+        except Exception:
+            pass
         self.cpu_fechar()  # solta o teto de CPU dos programas em segundo plano
         self.oc_fechar()  # devolve a placa de vídeo ao padrão, se o overclock estava ligado
         try:
@@ -1000,6 +1127,40 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
         except Exception:
             pass
         os._exit(0)
+
+
+def plano_para_jogar():
+    """v9.1: coloca um plano de energia de desempenho SEM desfazer escolhas da pessoa.
+    Devolve (texto, guid do plano anterior para voltar depois ou None, estado 'ok'/'pulado'/'erro')."""
+    if not IS_WIN:
+        return "Só funciona no Windows.", None, "pulado"
+    nivel = (CONFIG.get("cpu_perfil") or {}).get("nivel")
+    if nivel and nivel != "padrao":
+        return (f"Mantive o perfil de processador “{NOMES_CPU.get(nivel, nivel)}” que você escolheu "
+                "(o plano de energia não foi trocado)."), None, "ok"
+    try:
+        bat = psutil.sensors_battery()
+    except Exception:
+        bat = None
+    if bat is not None and not bat.power_plugged:
+        return ("Notebook na bateria: mantive o plano de energia. Ligue na tomada para jogar com o desempenho "
+                "máximo."), None, "pulado"
+    planos = listar_planos()
+    ativo = next((p for p in planos if p["ativo"]), None)
+    if ativo and PLANO_BOM.search(ativo["nome"]):
+        return f"O plano “{ativo['nome']}” já é de desempenho.", None, "ok"
+    txt = ativar_plano("alto")
+    if "ativado" in txt:
+        return txt, (ativo["guid"] if ativo else PLANOS_CONHECIDOS["equilibrado"][0]), "ok"
+    return txt, None, "erro"
+
+
+def plano_voltar(guid):
+    """Volta ao plano de antes (se ainda existir; senão, Equilibrado)."""
+    planos = {p["guid"] for p in listar_planos()}
+    alvo = guid if guid in planos else PLANOS_CONHECIDOS["equilibrado"][0]
+    cod, _ = executar(["powercfg", "/setactive", alvo])
+    return "Plano de energia de antes de volta." if cod == 0 else "Não consegui voltar o plano de energia de antes."
 
 
 NUCLEO = None
@@ -1087,7 +1248,12 @@ class Manipulador(BaseHTTPRequestHandler):
         try:
             while not NUCLEO.fechando:
                 CLIENTES["ultimo"] = time.time()
-                self.wfile.write(("data: " + json.dumps(NUCLEO.estado(), ensure_ascii=False) + "\n\n").encode("utf-8"))
+                try:
+                    corpo = json.dumps(NUCLEO.estado(), ensure_ascii=False)
+                except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError):
+                    time.sleep(1.0)  # v9.1: um erro passageiro ao montar o estado não derruba a tela
+                    continue
+                self.wfile.write(("data: " + corpo + "\n\n").encode("utf-8"))
                 self.wfile.flush()
                 time.sleep(1.0)
         except (OSError, ValueError):
@@ -1335,6 +1501,13 @@ def vigiar():
             NUCLEO.ocioso = NUCLEO.mon.ocioso = bool(sem_janela)
             continue
         if CLIENTES["ja_teve"] and agora - CLIENTES["ultimo"] > 6:
+            ocupado = NUCLEO.ocupado()
+            if ocupado:  # v9.1: janela fechada no meio de um trabalho ou de uma sessão de jogo: termina escondido antes de sair
+                NUCLEO.ocioso = NUCLEO.mon.ocioso = True
+                if not getattr(NUCLEO, "_avisou_fundo", False):
+                    NUCLEO._avisou_fundo = True
+                    NUCLEO.msg(f"Janela fechada: o Th Boost continua escondido até terminar ({ocupado}).")
+                continue
             NUCLEO.encerrar()
         if not CLIENTES["ja_teve"] and agora - inicio > 60:  # a janela nem chegou a abrir
             NUCLEO.encerrar()
@@ -1374,6 +1547,8 @@ def principal():
     carregar_config()
     NUCLEO = Nucleo()
     threading.Thread(target=servidor.serve_forever, daemon=True).start()
+    if reinicio and atu_de_argv():
+        atu_avisar_que_abriu()  # v9.1: o vigia da atualização vê que a versão nova abriu e não desfaz nada
     if USAR_INSTANCIA:
         gravar_instancia()
     if CONFIG["segundo_plano"]:

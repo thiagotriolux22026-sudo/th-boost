@@ -86,6 +86,11 @@ def _remover_arquivo(caminho):
         return False
 
 
+# v9.1: caches de shader das placas de vídeo nunca são apagados (mesmo dentro do Temp): sem eles o jogo recompila
+# tudo e dá travadinhas nas primeiras partidas
+PASTAS_PRESERVAR = {"nv_cache", "dxcache", "glcache", "d3dscache", "vkcache", "nvidia\\dxcache"}
+
+
 def _percorrer(pasta, apagar, ext=None, dias=None, idade_min=0, parar=None, _nivel=0):
     """Soma (e, se pedido, apaga) os arquivos de uma pasta. Pula o que está em uso. Devolve bytes."""
     total = 0
@@ -104,6 +109,8 @@ def _percorrer(pasta, apagar, ext=None, dias=None, idade_min=0, parar=None, _niv
             if e.is_symlink() or _atributo_ligacao(st):
                 continue  # nunca segue atalhos nem junções
             if e.is_dir(follow_symlinks=False):
+                if e.name.lower() in PASTAS_PRESERVAR:
+                    continue
                 total += _percorrer(e.path, apagar, ext, dias, idade_min, parar, _nivel + 1)
                 # pasta vazia só some se for antiga: um programa pode ter acabado de criá-la para usar daqui a pouco
                 if apagar and agora - st.st_mtime >= max(idade_min, (dias or 0) * 86400):
@@ -382,7 +389,8 @@ def tem_bateria():
 
 
 def _executar_longo(cmd, limite, parar=None):
-    """Roda um comando demorado e deixa interromper (botão Parar/Pular). Devolve (código, saída); código -1 = interrompido."""
+    """Roda um comando demorado e deixa interromper (botão Parar/Pular). Devolve (código, saída);
+    código -1 = interrompido por você, -2 = passou do tempo limite (v9.1: antes os dois diziam "pulado por você")."""
     flags = subprocess.CREATE_NO_WINDOW if IS_WIN else 0
     try:
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace",
@@ -395,16 +403,20 @@ def _executar_longo(cmd, limite, parar=None):
             saida, _ = p.communicate(timeout=0.5)
             return p.returncode, (saida or "").strip()
         except subprocess.TimeoutExpired:
-            if (parar and parar()) or time.time() - inicio > limite:
+            por_voce = bool(parar and parar())
+            if por_voce or time.time() - inicio > limite:
                 p.kill()
                 try:
                     p.communicate(timeout=5)
                 except (subprocess.SubprocessError, OSError):
                     pass
-                return -1, "interrompido"
+                return (-1, "interrompido") if por_voce else (-2, "tempo esgotado")
 
 
-# valores do plano de energia: (grupo, configuração, valor) aplicados só na tomada (na bateria nada muda)
+_CPMINCORES = "0cc5b647-c1df-4637-891a-dec35c318583"
+_CPMAXCORES = "943c8cb6-6f93-4227-ad87-e9a3ccbf8bc2"
+# valores do plano de energia: (grupo, configuração, valor) aplicados só na tomada. Em notebook o plano é copiado do
+# Equilibrado, então na bateria ele economiza como antes.
 AJUSTES_PLANO_EXT = [
     ("54533251-82be-4824-96c1-47b60b740d00", "893dee8e-2bef-41e0-89c6-b55d0929964c", 100),  # processador: mínimo 100%
     ("54533251-82be-4824-96c1-47b60b740d00", "bc5038f7-23e0-4960-96da-33abaf5935ec", 100),  # processador: máximo 100%
@@ -443,7 +455,10 @@ def criar_plano_extremo(sup=False):
             executar(["powercfg", "-changename", guid, nome_novo, "Criado pelo Th Boost"])
     else:
         guid = None
-        for origem in (PLANOS_CONHECIDOS["maximo"][0], PLANOS_CONHECIDOS["alto"][0], PLANOS_CONHECIDOS["equilibrado"][0]):
+        origens = (PLANOS_CONHECIDOS["maximo"][0], PLANOS_CONHECIDOS["alto"][0], PLANOS_CONHECIDOS["equilibrado"][0])
+        if tem_bateria():  # v9.1: em notebook a cópia sai do Equilibrado, então na bateria ele continua economizando
+            origens = (PLANOS_CONHECIDOS["equilibrado"][0],) + origens[:2]
+        for origem in origens:
             cod, saida = executar(["powercfg", "-duplicatescheme", origem])
             m = re.search(_GUID, saida or "")
             if cod == 0 and m:
@@ -452,7 +467,10 @@ def criar_plano_extremo(sup=False):
         if not guid:
             return False, "Não foi possível criar o plano de energia (o Windows recusou).", None, ativo
         executar(["powercfg", "-changename", guid, nome_novo, "Criado pelo Th Boost (Otimização " + ("Suprema" if sup else "Extrema") + ")"])
+    x3d = cpu_x3d_duplo()
     for sub, cfg, valor in AJUSTES_PLANO_EXT + (AJUSTES_PLANO_SUP if sup else []):  # o que o Windows não conhece é ignorado
+        if x3d and cfg in (_CPMINCORES, _CPMAXCORES):
+            continue  # Ryzen X3D de 2 blocos: o driver da AMD precisa "estacionar" núcleos para mandar o jogo ao bloco com V-Cache
         executar(["powercfg", "/setacvalueindex", guid, sub, cfg, str(valor)])
     cod, _ = executar(["powercfg", "/setactive", guid])
     if cod != 0:
@@ -750,6 +768,9 @@ class ExtremoMixin:
         if cod == -1:
             ctx["dism"] = "pulado"
             return "Pulado por você. Dá para rodar de novo depois.", "pulado", 0.0
+        if cod == -2:
+            ctx["dism"] = "adiado"
+            return "Demorou mais de 25 minutos e eu parei para não travar a otimização. Dá para rodar de novo depois.", "pulado", 0.0
         if cod != 0:
             ctx["dism"] = "adiado"
             return "O Windows adiou esta limpeza (pode haver uma atualização pendente).", "pulado", 0.0
@@ -773,9 +794,10 @@ class ExtremoMixin:
         _executar_longo(["icacls", pasta, "/grant", "*S-1-5-32-544:(OI)(CI)F", "/T", "/C", "/Q"], 900, parar)
         cod, _ = _executar_longo(["cmd", "/c", "rd", "/s", "/q", pasta], 1800, parar)
         self.ext_pular = self.ext["parando"]
-        if cod == -1:
+        if cod in (-1, -2):
             ctx["winold"] = "pulado"
-            return "Pulado por você. A pasta ficou como estava (parte pode ter sido apagada).", "pulado", 0.0
+            return (("Pulado por você." if cod == -1 else "Demorou demais e eu parei.")
+                    + " A pasta ficou como estava (parte pode ter sido apagada)."), "pulado", 0.0
         livre = max(0, psutil.disk_usage(disco_sistema()).free - antes)
         if pasta_windows_old() and os.listdir(pasta):
             ctx["winold"] = "parcial"
@@ -817,7 +839,7 @@ class ExtremoMixin:
                 a.ligar()
                 ok = a.estado() is True
             except OSError:
-                ok = False
+                ok = False  # serviço que o Windows recusa: o ajuste volta sozinho como era (tudo ou nada)
             if ok:
                 feitos += 1
                 ctx["ajustes"].append(a.id)

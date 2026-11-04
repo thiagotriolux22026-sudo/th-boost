@@ -17,10 +17,10 @@ _IGNORAR_EXE = re.compile(
     r"launcher_|notification_helper|vulkan|zip|7z)", re.IGNORECASE)
 
 # pacote de ajustes de FPS (ids do catálogo) que o "Otimizar antes de jogar" liga, se ainda estiverem desligados
-FPS_PACOTE = ["modo_jogo", "game_dvr", "fps_dvr_politica", "fps_gamebar", "prioridade_jogos", "mouse_acel",
-              "rede_throttle", "rede_nagle"]
+FPS_PACOTE = ["modo_jogo", "game_dvr", "fps_dvr_politica", "fps_gamebar", "fps_janela", "prioridade_jogos", "mouse_acel",
+              "do_p2p"]  # v9.1: saíram os de rede que não mudam o ping (continuam na lista para quem quiser)
 # lista completa mostrada na página Jogos (inclui os de risco médio, que só ligam por escolha da pessoa)
-FPS_LISTA = FPS_PACOTE + ["fps_energia_throttle", "hags", "fps_vbs"]
+FPS_LISTA = FPS_PACOTE + ["rede_throttle", "rede_nagle", "fps_energia_throttle", "hags", "fps_vbs"]
 # serviços que podem ser parados só enquanto o jogo roda (voltam sozinhos ao terminar a sessão)
 SERVICOS_PAUSA = [("wuauserv", "Windows Update"), ("BITS", "Transferência em segundo plano"),
                   ("DoSvc", "Entrega de atualizações"), ("WSearch", "Indexação de arquivos")]
@@ -282,7 +282,7 @@ class JogosMixin:
         E = self.pre
         adm = e_admin()
         ctx = {"jogo": j, "op": op, "ajustes": 0, "plano_anterior": None, "servicos": [], "gpu": 0, "fechados": [],
-               "ram_mb": 0.0, "leve_antes": self.mon.modo_leve, "adm": adm}
+               "ram_mb": 0.0, "leve_antes": self.mon.modo_leve, "adm": adm, "pid": pid}
         sessao_ok = False
         try:
             antes = self._medidas()
@@ -327,22 +327,22 @@ class JogosMixin:
         return (("Fechei: " + ", ".join(nomes) + ".") if nomes else "Nada pesado rodando escondido."), "ok"
 
     def _p_ram(self, ctx):
-        b, texto = liberar_ram()
+        poupar = {p.pid for p in self._pids_do_jogo((ctx["jogo"] or {}).get("pasta"))}  # o jogo já aberto não é mexido
+        if ctx.get("pid"):
+            poupar.add(ctx["pid"])
+        b, texto = liberar_ram(evitar=poupar)
         ctx["ram_mb"] = b / 1048576
         return texto, "ok"
 
     def _p_energia(self, ctx):
         if REG is None:
             return "Só funciona no Windows.", "pulado"
-        planos = listar_planos()
-        ativo = next((p for p in planos if p["ativo"]), None)
-        if ativo and PLANO_BOM.search(ativo["nome"]):
-            return f"O plano “{ativo['nome']}” já é de desempenho.", "ok"
-        txt = ativar_plano("alto")
-        if "ativado" in txt:
-            ctx["plano_anterior"] = ativo["guid"] if ativo else PLANOS_CONHECIDOS["equilibrado"][0]
+        txt, anterior, estado = plano_para_jogar()
+        if anterior:
+            ctx["plano_anterior"] = anterior
+            self._sessao_guardar(ctx)
             return txt + " Volta ao normal quando a sessão terminar.", "ok"
-        return txt, "erro"
+        return txt, estado
 
     def _p_ajustes(self, ctx):
         if REG is None:
@@ -393,15 +393,22 @@ class JogosMixin:
     def _p_pausar(self, ctx):
         if not ctx["adm"]:
             return "Precisa de Administrador.", "pulado"
-        parados = []
+        parados, recusados = [], []
         for svc, nome in SERVICOS_PAUSA:
             cod, saida = executar(["sc", "query", svc])
             if cod == 0 and re.search(r"RUNNING|EM EXECU", saida or "", re.IGNORECASE):
-                executar(["sc", "stop", svc], timeout=30)
-                parados.append((svc, nome))
+                c2, _ = executar(["sc", "stop", svc], timeout=30)
+                if c2 == 0:  # v9.1: só conta (e só religa depois) o que o Windows deixou parar
+                    parados.append((svc, nome))
+                else:
+                    recusados.append(nome)
         ctx["servicos"] = parados
-        return (("Pausei: " + ", ".join(n for _, n in parados) + ". Voltam quando a sessão terminar.") if parados
-                else "Nada disso estava rodando."), "ok"
+        self._sessao_guardar(ctx)  # se o PC desligar no meio do jogo, o Th Boost religa estes serviços na próxima vez
+        txt = (("Pausei: " + ", ".join(n for _, n in parados) + ". Voltam quando a sessão terminar.") if parados
+               else ("Nada disso estava rodando." if not recusados else ""))
+        if recusados:
+            txt += (" " if txt else "") + "O Windows não deixou pausar: " + ", ".join(recusados) + "."
+        return txt, "ok"
 
     def _p_leve(self, ctx):
         if not self.mon.modo_leve:
@@ -410,6 +417,48 @@ class JogosMixin:
         return "Os outros programas ficam com prioridade menor e o jogo em foco com prioridade alta.", "ok"
 
     # ----- sessão: dura enquanto o jogo roda e devolve tudo ao terminar -----
+
+    # ----- v9.1: a sessão fica gravada; se o Th Boost ou o PC fecharem no meio, tudo volta na próxima vez -----
+
+    def _sessao_guardar(self, ctx_ou_s):
+        d = ctx_ou_s or {}
+        servicos = d.get("servicos_nomes", d.get("servicos")) or []
+        if d.get("plano_anterior") or servicos:
+            j = d.get("jogo")
+            CONFIG["sessao_pendente"] = {"plano_anterior": d.get("plano_anterior"),
+                                         "servicos": [[a, b] for a, b in servicos],
+                                         "jogo": (j.get("nome") if isinstance(j, dict) else j) or "",
+                                         "pasta": d.get("pasta") or ((j or {}).get("pasta") if isinstance(j, dict) else "") or "",
+                                         "t": time.time()}
+        else:
+            CONFIG.pop("sessao_pendente", None)
+        salvar_config()
+
+    def sessao_retomar(self):
+        """Chamado ao abrir. Se a última sessão não terminou: continua (o jogo ainda está aberto) ou devolve tudo."""
+        p = CONFIG.get("sessao_pendente")
+        if not isinstance(p, dict) or self.sessao:
+            return
+        servicos = [tuple(x) for x in (p.get("servicos") or [])
+                    if isinstance(x, list) and len(x) == 2 and all(isinstance(y, str) for y in x)
+                    and any(x[0] == a for a, _ in SERVICOS_PAUSA)]  # só religa serviços que o próprio Th Boost pausa
+        plano = p.get("plano_anterior") if isinstance(p.get("plano_anterior"), str) and re.fullmatch(_GUID, p.get("plano_anterior") or "") else None
+        if plano:
+            ativo = next((x for x in listar_planos() if x["ativo"]), None)
+            velha = not isinstance(p.get("t"), (int, float)) or time.time() - p["t"] > 14 * 86400
+            if velha or (ativo and not PLANO_BOM.search(ativo["nome"])):
+                plano = None  # você já trocou o plano depois (ou faz muito tempo): não mexe
+        pasta = p.get("pasta") if isinstance(p.get("pasta"), str) else ""
+        s = {"jogo": str(p.get("jogo") or ""), "inicio": time.time(), "pid": None, "auto": True, "pasta": pasta,
+             "plano_anterior": plano, "servicos_nomes": servicos, "leve_antes": self.mon.modo_leve, "leve": False,
+             "aguardando": False}
+        if pasta and self._pids_do_jogo(pasta):
+            self.sessao = s
+            self.msg(f"{s['jogo'] or 'O jogo'} ainda está aberto: continuo cuidando da sessão e devolvo tudo quando fechar.")
+            threading.Thread(target=self._sessao_vigiar, args=(s,), daemon=True).start()
+            return
+        self.sessao = s
+        self.sessao_fim("A última sessão de jogo não terminou direito (o Th Boost ou o PC fecharam)")
 
     def _sessao_abrir(self, ctx, j, op, auto, pid):
         s = {"jogo": ctx["jogo"]["nome"] if ctx["jogo"] else "", "inicio": time.time(), "pid": pid, "auto": auto,
@@ -421,6 +470,7 @@ class JogosMixin:
             self.msg("Pronto para jogar! Nada precisou voltar ao normal depois.")
             return
         self.sessao = s
+        self._sessao_guardar(s)
         if j and op["abrir"] and not pid:
             s["aguardando"] = True
             self.msg(f"Abrindo {j['nome']}..." if lancar_jogo(j["abrir"]) else f"Não consegui abrir {j['nome']}.")
@@ -447,7 +497,13 @@ class JogosMixin:
         espera = time.time()
         visto, ausentes = False, 0
         while not self.fechando and self.sessao is s:
+            self.mon.jogando = True
             procs = self._pids_do_jogo(s["pasta"]) if s["pasta"] else []
+            if not procs and not s["pasta"] and s.get("pid"):  # v9.1: jogo sem pasta conhecida: acompanha pelo programa
+                try:
+                    procs = [psutil.Process(s["pid"])] if psutil.pid_exists(s["pid"]) else []
+                except (psutil.Error, OSError):
+                    procs = []
             if procs:
                 visto, ausentes = True, 0
                 s["aguardando"] = False
@@ -478,6 +534,9 @@ class JogosMixin:
             return
         self.sessao = None
         self.mon.fixos.clear()
+        self.mon.jogando = False
+        CONFIG.pop("sessao_pendente", None)
+        salvar_config()
         feitos = []
         if s.get("servicos_nomes") and e_admin():
             for svc, nome in s["servicos_nomes"]:
@@ -501,6 +560,8 @@ class JogosMixin:
                 executar(["sc", "start", svc], timeout=30)
         if ctx["plano_anterior"]:
             executar(["powercfg", "/setactive", ctx["plano_anterior"]])
+        CONFIG.pop("sessao_pendente", None)
+        salvar_config()
 
     # ----- desfazer os perfis por jogo -----
 

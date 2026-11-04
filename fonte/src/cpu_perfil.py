@@ -107,7 +107,7 @@ def cpu_valores_ac(guid):
     """Valores atuais (tomada) de cada ajuste de CPU do plano. None onde o Windows não informa."""
     saida = {}
     for chave, (sub, cfg) in _CFG_CPU.items():
-        cod, txt = executar(["powercfg", "/query", guid, sub, cfg])
+        cod, txt = executar(["powercfg", "/qh", guid, sub, cfg])  # v9.1: /qh mostra também os ajustes escondidos
         saida[chave] = _hex_ac(txt) if cod == 0 else None
     return saida
 
@@ -121,11 +121,20 @@ def cpu_perfil_detectar(valores):
     return "padrao"
 
 
+def cpu_x3d_duplo(nome=None, logicos=None):
+    """AMD Ryzen X3D com mais de 8 núcleos (dois blocos, só um com V-Cache). Função pura quando recebe os dados."""
+    nome = nome if nome is not None else (nome_do_processador() if IS_WIN else "")
+    logicos = logicos if logicos is not None else (psutil.cpu_count() or 0)
+    return bool(re.search(r"X3D\b", nome or "", re.I)) and logicos > 16
+
+
 def cpu_alvo(nivel, antes):
     """Valor de cada ajuste ao ir para um perfil: o do perfil, ou o original guardado nos que o perfil não mexe. Função pura."""
     perfil = PERFIS_CPU.get(nivel) or {}
     alvo = {}
     for chave in _CFG_CPU:
+        if antes.get(chave) is None:
+            continue  # v9.1: sem o valor original guardado, não mexe (não daria para voltar depois)
         v = perfil.get(chave, antes.get(chave))
         if isinstance(v, int) and not isinstance(v, bool):
             alvo[chave] = v
@@ -188,6 +197,15 @@ class CpuPerfilMixin:
         self.em_fundo(lambda: self.t_cpu_perfil_definir(nivel))
 
     def t_cpu_perfil_definir(self, nivel):
+        trava = self.__dict__.setdefault("_cpup_aplicando", threading.Lock())
+        if not trava.acquire(blocking=False):
+            return "Já estou aplicando um perfil. Espere terminar."
+        try:
+            return self._t_cpu_perfil_definir(nivel)
+        finally:
+            trava.release()
+
+    def _t_cpu_perfil_definir(self, nivel):
         planos = {p["guid"] for p in listar_planos()}
         cfg = self._cpup_cfg()
         if nivel == "padrao":
@@ -212,10 +230,19 @@ class CpuPerfilMixin:
                 antes = cpu_valores_ac(guid)
             nivel_alvo = nivel
         alvo = cpu_alvo(nivel_alvo, antes)
-        feitos = self._cpu_perfil_gravar(guid, alvo, True)
+        if nivel_alvo == "padrao" and cfg and "turbo" not in alvo and "turbo" in (PERFIS_CPU.get(cfg.get("nivel")) or {}):
+            # v9.1: versões antigas não conseguiam ler o turbo (ajuste escondido) e não o guardavam; o Fresco/Gelado o
+            # desligavam e o "Normal" não o devolvia. Volta para o padrão do Windows na tomada (2 = agressivo).
+            alvo["turbo"] = 2
+        if nivel_alvo != "padrao" and cpu_x3d_duplo():
+            alvo.pop("nucleos", None)  # v9.1: X3D de dois blocos: o driver da AMD cuida dos núcleos durante o jogo
+        # v9.1: "Padrão" devolve os valores do plano guardado, mas só ativa esse plano se ele já era o ativo
+        # (se você está na Extrema ou numa sessão de jogo, não troca de plano por baixo dela)
+        ativar = nivel_alvo != "padrao" or cpu_plano_ativo()[0] == guid
+        feitos = self._cpu_perfil_gravar(guid, alvo, ativar)
         if feitos < 2:  # não deixa pela metade: devolve o plano ao que estava
             anterior = cfg["nivel"] if cfg and cfg.get("plano") == guid else "padrao"
-            self._cpu_perfil_gravar(guid, cpu_alvo(anterior, antes), True)
+            self._cpu_perfil_gravar(guid, cpu_alvo(anterior, antes), ativar)
             return "O Windows recusou a mudança no plano de energia. Confira se abriu como Administrador."
         if nivel_alvo == "padrao":
             CONFIG.pop("cpu_perfil", None)

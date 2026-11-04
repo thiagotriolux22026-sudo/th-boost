@@ -2,6 +2,8 @@ APP_NAME = "Th Boost"
 IS_WIN = os.name == "nt"
 USUARIO = os.environ.get("USERNAME", "").upper()
 PRESENTMON_ARGS = ["--output_stdout", "--stop_existing_session"]
+# v9.1: o PresentMon 2.x usa "--", o 1.x usa "-"; se um jeito não der cabeçalho, tenta o outro
+PRESENTMON_VARIANTES = (PRESENTMON_ARGS, ["-output_stdout", "-stop_existing_session"])
 PLANO_ALTO_DESEMPENHO = "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c"
 SERVIDOR_PING = "8.8.8.8"
 FONTE = "Segoe UI"
@@ -12,6 +14,17 @@ PROTEGIDOS = {
     "explorer.exe", "ctfmon.exe", "sihost.exe", "shellexperiencehost.exe",
     "startmenuexperiencehost.exe", "searchhost.exe",
 }
+# v9.1: o Modo Leve não baixa a prioridade de quem precisa de tempo certo: voz, áudio, gravação/transmissão, controles e
+# sobreposições de FPS. Baixar esses causa voz picotando, áudio estalando, gravação perdendo quadros e controle sem resposta.
+PROTEGIDOS_LEVE = frozenset({
+    "discord.exe", "discordptb.exe", "discordcanary.exe", "teamspeak.exe", "ts3client_win64.exe", "ts3client_win32.exe",
+    "mumble.exe", "voicemod.exe", "voicemeeter.exe", "voicemeeterpro.exe", "voicemeeter8.exe", "voicemeeter8x64.exe",
+    "obs64.exe", "obs32.exe", "streamlabs obs.exe", "streamlabs desktop.exe", "xsplit.core.exe", "nvcontainer.exe",
+    "nvidia share.exe", "nvidia overlay.exe", "amdrsserv.exe", "radeonsoftware.exe", "rtss.exe", "msiafterburner.exe",
+    "steam.exe", "steamwebhelper.exe", "lghub.exe", "lghub_agent.exe", "lghub_system_tray.exe", "razer synapse 3.exe",
+    "razercentralservice.exe", "icue.exe", "steelseriesgg.exe", "ds4windows.exe", "x360ce.exe", "wallpaper64.exe",
+    "wallpaper32.exe", "spotify.exe", "audiodg.exe", "fxsound.exe", "nahimic.exe", "sonic studio 3.exe"})
+
 
 
 # ---------------- funções de sistema ----------------
@@ -142,35 +155,67 @@ def _limpar_cache_arquivos():
     return bool(k32.SetSystemFileCacheSize(ctypes.c_size_t(-1), ctypes.c_size_t(-1), 0))
 
 
-def liberar_ram():
-    """Libera o máximo de memória: processos, páginas alteradas, cache de arquivos e standby.
+def liberar_ram(evitar=None):
+    """v9.1: libera memória SÓ quando ela está apertada, e sem prejudicar o que está rodando.
+    Antes, esvaziava a memória de TODOS os programas (inclusive do jogo e do áudio) e o cache de arquivos: o Windows
+    tinha que recarregar tudo do disco depois, o que dava travadinhas. Agora:
+      - com memória folgada (mais de 25% livre), não faz nada: memória "parada" no cache deixa o PC mais rápido, não mais lento;
+      - apertada: esvazia só programas em segundo plano do seu usuário (nunca o da frente, jogos, voz, áudio, gravação)
+        e limpa só a parte de baixa prioridade do cache (standby). O cache de arquivos não é mais jogado fora.
     Devolve (bytes_liberados, mensagem)."""
     if not IS_WIN:
         return 0, "Disponível só no Windows."
+    vm = psutil.virtual_memory()
+    livre = 100 - vm.percent
+    if livre >= 25:
+        return 0, (f"A memória está folgada ({livre:.0f}% livre). Limpar agora não deixaria nada mais rápido: "
+                   "o Windows usa a memória sobrando como cache, e isso ajuda.")
     k32, psapi = ctypes.windll.kernel32, ctypes.windll.psapi
     k32.OpenProcess.restype = ctypes.c_void_p
     k32.OpenProcess.argtypes = [ctypes.c_ulong, ctypes.c_bool, ctypes.c_ulong]
     k32.CloseHandle.argtypes = [ctypes.c_void_p]
     psapi.EmptyWorkingSet.argtypes = [ctypes.c_void_p]
-    antes = psutil.virtual_memory().available
-    for p in psutil.process_iter(["pid"]):  # esvazia a memória de cada processo
-        h = k32.OpenProcess(0x0100 | 0x0400, False, p.info["pid"])  # SET_QUOTA | QUERY_INFORMATION
-        if h:
-            psapi.EmptyWorkingSet(h)
-            k32.CloseHandle(h)
+    antes = vm.available
+    poupar = set(evitar or ())
+    frente = pid_em_primeiro_plano()
+    if frente:
+        poupar.add(frente)
+    for p in psutil.process_iter(["pid", "name", "username"]):
+        try:
+            nome = (p.info["name"] or "").lower()
+            if (p.pid in poupar or p.pid in (0, 4, os.getpid()) or nome in PROTEGIDOS or nome in PROTEGIDOS_LEVE
+                    or (p.info["username"] or "").split("\\")[-1].upper() != USUARIO):
+                continue
+            h = k32.OpenProcess(0x0100 | 0x0400, False, p.pid)  # SET_QUOTA | QUERY_INFORMATION
+            if h:
+                psapi.EmptyWorkingSet(h)
+                k32.CloseHandle(h)
+        except (psutil.Error, OSError):
+            continue
     admin = e_admin()
     if admin:
         _ativar_privilegio("SeProfileSingleProcessPrivilege")
         _ativar_privilegio("SeIncreaseQuotaPrivilege")
-        for cmd in (3, 4, 5):  # gravar páginas alteradas e limpar o standby (normal e baixa prioridade)
+        for cmd in (3, 5):  # grava as páginas alteradas e limpa só o standby de BAIXA prioridade
             _comando_memoria(cmd)
-        _limpar_cache_arquivos()
     liberado = max(0, psutil.virtual_memory().available - antes)
     mb = liberado / 1048576
-    if admin:
-        return liberado, f"RAM liberada: ~{mb:.0f} MB (processos, cache de arquivos e standby)."
-    return liberado, (f"RAM liberada: ~{mb:.0f} MB dos processos. "
-                      "Abra como Administrador para liberar também o cache do sistema.")
+    return liberado, (f"Memória estava apertada ({livre:.0f}% livre): ~{mb:.0f} MB liberados de programas em segundo plano. "
+                      "O programa que você está usando e o jogo não foram mexidos.")
+
+
+def abrir_link(url):
+    """v9.1: abre um site no navegador da pessoa. Com o Th Boost como Administrador, abrir direto deixaria o navegador
+    também como Administrador (inseguro e sem as contas da pessoa); pelo explorer.exe ele abre normal."""
+    if not isinstance(url, str) or not url.startswith("https://"):
+        raise ValueError("link inválido")
+    if IS_WIN and e_admin():
+        try:
+            subprocess.Popen(["explorer.exe", url])
+            return True
+        except OSError:
+            pass
+    return webbrowser.open(url)
 
 
 def plano_alto_desempenho():
@@ -255,12 +300,48 @@ def pasta_do_programa():
 
 
 def caminho_presentmon():
-    """Procura PresentMon.exe na pasta do programa, na pasta atual e no PATH."""
+    """Procura o PresentMon na pasta do programa, na pasta atual e no PATH. v9.1: aceita o nome do download
+    (PresentMon-2.3.0-x64.exe) além de PresentMon.exe."""
     for pasta in (pasta_do_programa(), os.getcwd()):
         caminho = os.path.join(pasta, "PresentMon.exe")
         if os.path.isfile(caminho):
             return caminho
+        try:
+            achados = [a for a in sorted(glob.glob(os.path.join(pasta, "PresentMon*.exe")), reverse=True)
+                       if not re.search(r"service|setup|install", os.path.basename(a), re.I)]
+        except OSError:
+            achados = []
+        if achados:
+            return achados[0]
     return shutil.which("PresentMon.exe")
+
+
+def presentmon_colunas(partes):
+    """Cabeçalho do CSV do PresentMon -> (coluna do app, do PID ou None, do tempo do quadro em ms) ou None.
+    1.x: MsBetweenPresents; 2.x: FrameTime (os dois em milissegundos). Função pura."""
+    if "Application" not in partes:
+        return None
+    for nome in ("MsBetweenPresents", "FrameTime", "MsBetweenDisplayChange", "DisplayedTime"):
+        if nome in partes:
+            return partes.index("Application"), (partes.index("ProcessID") if "ProcessID" in partes else None), partes.index(nome)
+    return None
+
+
+def fps_da_janela(quadros, agora, pid_frente=None, janela=1.0):
+    """quadros: deque de (hora, app, pid, ms). Devolve (fps, app) do jogo na frente; se ele não desenhou nada, o app com
+    mais quadros (sem o dwm, que é a própria área de trabalho). Função pura."""
+    por = {}
+    for t, app, pid, ms in quadros:
+        if agora - t <= janela and ms > 0:
+            por.setdefault((app, pid), []).append(ms)
+    if not por:
+        return None, ""
+    candidatos = [k for k in por if pid_frente is not None and k[1] == pid_frente]
+    if not candidatos:
+        candidatos = sorted((k for k in por if k[0].lower() != "dwm.exe"), key=lambda k: -len(por[k])) or list(por)
+    k = candidatos[0]
+    media = sum(por[k]) / len(por[k])
+    return (round(1000.0 / media) if media > 0 else None), k[0]
 
 
 def formatar_velocidade(bps):
@@ -278,15 +359,33 @@ EXCLUIR_JOGOS = ("redistributable", "redist", "steamworks", "proton", "linux run
                  "directx", "vc_redist", "dotnet", "easyanticheat", "battleye")
 
 
-def _pastas_steam():
-    base = None
-    for raiz in (os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
-                 os.environ.get("ProgramFiles", r"C:\Program Files")):
-        if os.path.isdir(os.path.join(raiz, "Steam")):
-            base = os.path.join(raiz, "Steam")
-            break
-    if base is None:
+def _steam_registro():
+    """v9.1: pasta da Steam pelo registro (Steam instalada em D:\\Steam, por exemplo)."""
+    if not IS_WIN:
         return []
+    achados = []
+    try:
+        import winreg as _w
+        for raiz, caminho, nome in ((_w.HKEY_CURRENT_USER, r"Software\Valve\Steam", "SteamPath"),
+                                    (_w.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Valve\Steam", "InstallPath"),
+                                    (_w.HKEY_LOCAL_MACHINE, r"SOFTWARE\Valve\Steam", "InstallPath")):
+            try:
+                with _w.OpenKey(raiz, caminho) as k:
+                    v = str(_w.QueryValueEx(k, nome)[0]).replace("/", "\\")
+                if v and os.path.isdir(v) and v.lower() not in [a.lower() for a in achados]:
+                    achados.append(v)
+            except OSError:
+                continue
+    except ImportError:
+        pass
+    return achados
+
+
+def _pastas_steam():
+    raizes = _raizes_steam()
+    if not raizes:
+        return []
+    base = raizes[0]
     pastas = [os.path.join(base, "steamapps")]
     try:  # bibliotecas extras (ex.: outro HD)
         with open(os.path.join(base, "steamapps", "libraryfolders.vdf"), encoding="utf-8", errors="replace") as f:
@@ -364,11 +463,12 @@ def lancar_jogo(abrir):
 # ---------------- capas dos jogos ----------------
 
 def _raizes_steam():
-    raizes = []
+    raizes = list(_steam_registro())  # v9.1: primeiro onde a Steam diz que está (pode ser D:\\Steam)
     for raiz in (os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
                  os.environ.get("ProgramFiles", r"C:\Program Files")):
-        if os.path.isdir(os.path.join(raiz, "Steam")):
-            raizes.append(os.path.join(raiz, "Steam"))
+        c = os.path.join(raiz, "Steam")
+        if os.path.isdir(c) and c.lower() not in [r.lower() for r in raizes]:
+            raizes.append(c)
     return raizes
 
 
@@ -438,6 +538,9 @@ class Monitor(threading.Thread):
         self.ocioso = False  # sem janela aberta (modo segundo plano): só mantém as prioridades
         self.trava = threading.Lock()
         self.quadros = collections.deque()
+        self.jogando = False  # v9.1: durante uma sessão de jogo o Th Boost lê menos coisas (sobra mais CPU para o jogo)
+        self._dono = {}  # pid -> (hora de criação, é do seu usuário?) para não perguntar ao Windows a cada 4 s
+        self._religar_fps = False
 
     def run(self):
         ultimo_gpu = ultimo_prio = 0.0
@@ -447,7 +550,7 @@ class Monitor(threading.Thread):
             agora = time.time()
             if self.ocioso:  # ninguém olhando os números: não gasta CPU lendo GPU e rede
                 rede_antes, ultimo_rede = psutil.net_io_counters(), agora
-            if not self.ocioso and agora - ultimo_gpu > 1.5:
+            if not self.ocioso and agora - ultimo_gpu > (5.0 if self.jogando else 1.5):
                 self.dados["gpu"] = ler_gpu()
                 self.dados["gpu_lida"] = True
                 ultimo_gpu = agora
@@ -457,7 +560,7 @@ class Monitor(threading.Thread):
                 self.dados["down"] = (rede_agora.bytes_recv - rede_antes.bytes_recv) / dt
                 self.dados["up"] = (rede_agora.bytes_sent - rede_antes.bytes_sent) / dt
                 rede_antes, ultimo_rede = rede_agora, agora
-            if (self.modo_leve or self.alterados) and (self.forcar or agora - ultimo_prio > 4):
+            if (self.modo_leve or self.alterados) and (self.forcar or agora - ultimo_prio > (6 if self.jogando else 4)):
                 self.forcar = False
                 ultimo_prio = agora
                 self.aplicar_prioridades(self.modo_leve)
@@ -467,59 +570,86 @@ class Monitor(threading.Thread):
         self.dados["fps_erro"] = ""
         self.fps_ligado = ligar
         if ligar and self.proc_fps is None:
+            self._religar_fps = False
             threading.Thread(target=self._ler_presentmon, daemon=True).start()
-        elif not ligar and self.proc_fps is not None:
-            self.proc_fps.terminate()
+        elif ligar:
+            self._religar_fps = True  # o leitor antigo ainda está fechando: abre outro assim que ele terminar
+        elif self.proc_fps is not None:
+            self._religar_fps = False
+            try:
+                self.proc_fps.terminate()
+            except OSError:
+                pass
 
     def _ler_presentmon(self):
+        """v9.1: funciona com o PresentMon 1.x e 2.x, mostra o FPS do jogo que está na frente e nunca fica preso."""
         caminho = caminho_presentmon()
         if caminho is None:
-            self.dados["fps_erro"] = ("PresentMon.exe não encontrado. Coloque o arquivo "
-                                      "dentro da pasta do Th Boost e tente de novo.")
+            self.dados["fps_erro"] = ("PresentMon não encontrado. Baixe em github.com/GameTechDev/PresentMon e coloque o "
+                                      ".exe dentro da pasta do Th Boost.")
             self.fps_ligado = False
             return
         flags = subprocess.CREATE_NO_WINDOW if IS_WIN else 0
+        recebeu = False
         try:
-            proc = subprocess.Popen([caminho] + PRESENTMON_ARGS, stdout=subprocess.PIPE,
-                                    stderr=subprocess.DEVNULL, text=True, creationflags=flags)
-        except OSError:
-            self.dados["fps_erro"] = "Não foi possível iniciar o PresentMon."
-            self.fps_ligado = False
-            return
-        self.proc_fps = proc
-        colunas, recebeu = None, False
-        for linha in proc.stdout:
-            if not self.fps_ligado:
-                break
-            partes = linha.strip().split(",")
-            if colunas is None:
-                if "Application" in partes and "TimeInSeconds" in partes:
-                    colunas = (partes.index("Application"), partes.index("TimeInSeconds"))
-                continue
-            try:
-                app, t = partes[colunas[0]], float(partes[colunas[1]])
-            except (IndexError, ValueError):
-                continue
-            recebeu = True
-            self.quadros.append((t, app))
-            while self.quadros and t - self.quadros[0][0] > 2:
-                self.quadros.popleft()
-            # FPS = quadros do último app nos últimos 1 segundo
-            self.dados["fps"] = sum(1 for ti, a in self.quadros if a == app and t - ti < 1)
-            self.dados["app"] = app.replace(".exe", "")
-        try:
-            proc.terminate()
-            proc.wait(timeout=3)
-        except (OSError, subprocess.SubprocessError):
-            pass
-        if self.fps_ligado:  # parou sozinho, sem o usuário desligar
-            self.dados["fps_erro"] = ("PresentMon parou. Abra o Th Boost como Administrador."
-                                      if recebeu else
-                                      "PresentMon não iniciou. Abra o Th Boost como Administrador.")
-        self.fps_ligado = False
-        self.proc_fps = None
-        self.dados["fps"] = None
-        self.quadros.clear()
+            for args in PRESENTMON_VARIANTES:
+                if not self.fps_ligado:
+                    break
+                try:
+                    proc = subprocess.Popen([caminho] + args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                            text=True, encoding="utf-8", errors="replace", creationflags=flags)
+                except OSError:
+                    self.dados["fps_erro"] = "Não foi possível iniciar o PresentMon."
+                    break
+                self.proc_fps = proc
+                colunas, ultimo = None, 0.0
+                for linha in proc.stdout:
+                    if not self.fps_ligado:
+                        break
+                    partes = linha.strip().split(",")
+                    if colunas is None:
+                        colunas = presentmon_colunas(partes)
+                        continue
+                    try:
+                        app = partes[colunas[0]]
+                        pid = int(partes[colunas[1]]) if colunas[1] is not None else None
+                        ms = float(partes[colunas[2]])
+                    except (IndexError, ValueError):
+                        continue
+                    recebeu = True
+                    agora = time.time()
+                    self.quadros.append((agora, app, pid, ms))
+                    while self.quadros and agora - self.quadros[0][0] > 2:
+                        self.quadros.popleft()
+                    if agora - ultimo >= 0.5:  # atualiza a tela 2x por segundo
+                        ultimo = agora
+                        fps, nome = fps_da_janela(self.quadros, agora, pid_em_primeiro_plano())
+                        self.dados["fps"] = fps
+                        self.dados["app"] = nome.replace(".exe", "")
+                try:
+                    proc.terminate()
+                    proc.wait(timeout=3)
+                except (OSError, subprocess.SubprocessError):
+                    pass
+                if colunas is not None or not self.fps_ligado:
+                    break  # este jeito funcionou (ou a pessoa desligou): não tenta o outro
+            if self.fps_ligado:  # parou sozinho, sem o usuário desligar
+                self.dados["fps_erro"] = (("PresentMon parou. " if recebeu else "PresentMon não iniciou. ")
+                                          + ("Abra o Th Boost como Administrador." if not e_admin()
+                                             else "Feche outros contadores de FPS (Afterburner/RTSS) e tente de novo."))
+        except Exception:
+            self.dados["fps_erro"] = "O contador de FPS falhou. Desligue e ligue de novo."
+        finally:
+            self.proc_fps = None
+            self.dados["fps"] = None
+            self.quadros.clear()
+            if self._religar_fps:  # desligou e ligou de novo rápido
+                self._religar_fps = False
+                self.fps_ligado = True
+                self.dados["fps_erro"] = ""
+                threading.Thread(target=self._ler_presentmon, daemon=True).start()
+            else:
+                self.fps_ligado = False
 
     def aplicar_prioridades(self, leve):
         """Modo leve: app em foco com prioridade alta; o resto do seu usuário com prioridade baixa."""
@@ -535,15 +665,29 @@ class Monitor(threading.Thread):
                 self.alterados.clear()
                 return
             frente = pid_em_primeiro_plano()
-            for p in psutil.process_iter(["pid", "name"]):
+            vistos = set()
+            for p in psutil.process_iter(["pid", "name", "create_time"]):
                 try:
                     nome = (p.info["name"] or "").lower()
-                    if p.pid in (0, 4, os.getpid()) or nome in PROTEGIDOS or p.pid in self.fixos:
+                    vistos.add(p.pid)
+                    if p.pid in (0, 4, os.getpid()) or nome in PROTEGIDOS or nome in PROTEGIDOS_LEVE or p.pid in self.fixos:
                         continue
-                    if p.username().split("\\")[-1].upper() != USUARIO:
+                    criado = p.info.get("create_time")
+                    dono = self._dono.get(p.pid)
+                    if dono is None or dono[0] != criado:
+                        dono = (criado, p.username().split("\\")[-1].upper() == USUARIO)
+                        self._dono[p.pid] = dono
+                    if not dono[1]:
                         continue  # só mexe nos programas do seu usuário
-                    p.nice(psutil.ABOVE_NORMAL_PRIORITY_CLASS if p.pid == frente
-                           else psutil.BELOW_NORMAL_PRIORITY_CLASS)
+                    alvo = psutil.ABOVE_NORMAL_PRIORITY_CLASS if p.pid == frente else psutil.BELOW_NORMAL_PRIORITY_CLASS
+                    atual = p.nice()
+                    if p.pid not in self.alterados and atual != psutil.NORMAL_PRIORITY_CLASS:
+                        continue  # v9.1: quem já tinha outra prioridade (escolhida por você ou pelo programa) fica como está
+                    if atual != alvo:
+                        p.nice(alvo)
                     self.alterados.add(p.pid)
                 except (psutil.Error, OSError):
                     continue
+            for pid in [x for x in self._dono if x not in vistos]:  # programas que fecharam
+                self._dono.pop(pid, None)
+            self.alterados &= vistos

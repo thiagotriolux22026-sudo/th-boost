@@ -194,26 +194,102 @@ def atu_trocar_arquivos(arquivos, pasta):
     return trocados
 
 
-def atu_reabrir(versao_antiga):
-    """Abre o Th Boost novo (que espera este aqui fechar) e devolve True se conseguiu."""
-    script = os.path.join(pasta_do_programa(), "th_boost.py")
-    exe = sys.executable
-    if IS_WIN and os.path.basename(exe).lower() == "python.exe":
-        w = os.path.join(os.path.dirname(exe), "pythonw.exe")
-        if os.path.isfile(w):
-            exe = w
-    args = [exe, script, "--reinicio", "--de", versao_antiga]
+# v9.1: vigia da atualização. Roda separado (o Th Boost antigo já fechou). Se a versão nova não avisar que abriu em até
+# 2 minutos, devolve o th_boost.py guardado em "versao_anterior" e abre a versão de antes.
+ATU_VIGIA = r"""
+import os, sys, time, shutil, subprocess
+pasta, exe, nova, pid = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
+espera = float(sys.argv[5]) if len(sys.argv) > 5 else 120.0
+ok = os.path.join(pasta, "versao_anterior", "atu_ok")
+ini = time.time()
+h = None
+if os.name == "nt":  # segura o processo pelo "identificador": assim o número dele não é reaproveitado por outro programa
+    import ctypes
+    k32 = ctypes.windll.kernel32
+    k32.OpenProcess.restype = ctypes.c_void_p
+    k32.OpenProcess.argtypes = [ctypes.c_ulong, ctypes.c_bool, ctypes.c_ulong]
+    k32.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+    k32.TerminateProcess.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+    h = k32.OpenProcess(0x00100000 | 0x0001, False, pid)  # SYNCHRONIZE | PROCESS_TERMINATE
+while time.time() - ini < espera:
+    try:
+        if os.path.getmtime(ok) >= ini - 5:
+            sys.exit(0)
+    except OSError:
+        pass
+    time.sleep(1)
+try:
+    if os.name == "nt":
+        if h and k32.WaitForSingleObject(h, 0) == 0x102:  # ainda rodando (travado): fecha só ele
+            k32.TerminateProcess(h, 1)
+            k32.WaitForSingleObject(h, 5000)
+    else:
+        os.kill(pid, 9)
+except Exception:
+    pass
+copia = os.path.join(pasta, "versao_anterior", "th_boost.py")
+alvo = os.path.join(pasta, "th_boost.py")
+try:
+    shutil.copyfile(copia, alvo + ".volta")
+    os.replace(alvo + ".volta", alvo)
+except OSError:
+    sys.exit(1)
+fl = (0x00000008 | 0x00000200 | 0x08000000) if os.name == "nt" else 0
+kw = {"creationflags": fl} if os.name == "nt" else {"start_new_session": True}
+subprocess.Popen([exe, alvo, "--reinicio", "--falhou", nova], cwd=pasta, close_fds=True, stdin=subprocess.DEVNULL,
+                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **kw)
+"""
+
+
+def _atu_popen(args):
     opc = {"cwd": pasta_do_programa(), "stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL,
            "stderr": subprocess.DEVNULL, "close_fds": True}
     if IS_WIN:
         opc["creationflags"] = 0x00000008 | 0x00000200 | 0x08000000  # DETACHED_PROCESS | NEW_PROCESS_GROUP | NO_WINDOW
     else:
         opc["start_new_session"] = True
+    return subprocess.Popen(args, **opc)
+
+
+def atu_reabrir(versao_antiga, versao_nova=""):
+    """Abre o Th Boost novo (que espera este aqui fechar) e o vigia da atualização. Devolve True se conseguiu."""
+    script = os.path.join(pasta_do_programa(), "th_boost.py")
+    exe = sys.executable
+    if IS_WIN and os.path.basename(exe).lower() == "python.exe":
+        w = os.path.join(os.path.dirname(exe), "pythonw.exe")
+        if os.path.isfile(w):
+            exe = w
     try:
-        subprocess.Popen(args, **opc)
-        return True
+        novo = _atu_popen([exe, script, "--reinicio", "--de", versao_antiga])
     except OSError:
         return False
+    if versao_nova and os.path.isfile(os.path.join(pasta_do_programa(), "versao_anterior", "th_boost.py")):
+        try:
+            _atu_popen([exe, "-I", "-c", ATU_VIGIA, pasta_do_programa(), exe, versao_nova, str(novo.pid),
+                        os.environ.get("THBOOST_ATU_VIGIA", "120")])
+        except OSError:
+            pass  # sem o vigia a atualização segue igual (só não volta sozinha se a nova falhar)
+    return True
+
+
+def atu_avisar_que_abriu():
+    """Chamado pela versão nova logo que abre: o vigia vê este arquivo e não desfaz nada."""
+    try:
+        caminho = os.path.join(pasta_do_programa(), "versao_anterior", "atu_ok")
+        with open(caminho, "w", encoding="utf-8") as f:
+            f.write(VERSAO)
+    except OSError:
+        pass
+
+
+def atu_falhou_argv():
+    """Versão que não conseguiu abrir ('--falhou v9.2'), quando o vigia voltou para esta."""
+    a = sys.argv[1:]
+    if "--falhou" in a:
+        i = a.index("--falhou")
+        if i + 1 < len(a) and versao_tupla(a[i + 1]):
+            return a[i + 1][:12]
+    return ""
 
 
 def atu_de_argv():
@@ -232,9 +308,14 @@ class AtualizaMixin:
     def atu_iniciar_estado(self):
         congelado = bool(getattr(sys, "frozen", False))  # rodando como .exe: troca de arquivo não serve, abre o link
         self.atu = {"estado": "parado", "atual": VERSAO, "nova": "", "novidades": [], "pct": 0, "erro": "",
-                    "quando": 0, "de": atu_de_argv(), "modo": "link" if congelado else "auto"}
+                    "quando": 0, "de": atu_de_argv(), "modo": "link" if congelado else "auto", "falhou": atu_falhou_argv()}
         self.atu_info = None
         self._atu_trava = threading.Lock()
+        if self.atu["falhou"]:
+            CONFIG["atu_pular"] = self.atu["falhou"]  # não fica oferecendo sozinho a versão que não abriu aqui
+            salvar_config()
+            self.msg(f"A versão {self.atu['falhou']} não abriu neste computador, então voltei para a {VERSAO}. "
+                     "Nada foi perdido. Avise o dono do Th Boost.")
         if not os.environ.get("THBOOST_SEM_ATU"):
             threading.Thread(target=self._atu_vigiar, daemon=True).start()
 
@@ -264,6 +345,10 @@ class AtualizaMixin:
                                 erro="Não deu para procurar agora (sem internet?)." if manual else "")
                 return
             self.atu["quando"] = time.time()
+            if not manual and info["versao"] == CONFIG.get("atu_pular"):
+                self.atu_info = None
+                self.atu.update(estado="em_dia", nova="", novidades=[])
+                return
             if atu_mais_nova(info["versao"], VERSAO):
                 self.atu_info = info
                 self.atu.update(estado="disponivel", nova=info["versao"], novidades=info["novidades"])
@@ -280,7 +365,7 @@ class AtualizaMixin:
         if not info or self.atu["estado"] != "disponivel":
             raise ValueError("não há versão nova para instalar")
         if self.atu["modo"] == "link":  # .exe: abre a página para baixar
-            webbrowser.open(ATU_PAGINA)
+            abrir_link(ATU_PAGINA)
             self.msg("Abri a página do Th Boost para baixar a versão nova.")
             return
         self.atu.update(estado="baixando", pct=0, erro="")
@@ -304,7 +389,7 @@ class AtualizaMixin:
                 self.atu.update(estado="disponivel", erro=f"A atualização não deu certo: {motivo}. O Th Boost continua na {VERSAO}.")
                 return
             self.atu.update(estado="reiniciando")
-            if not atu_reabrir(VERSAO):
+            if not atu_reabrir(VERSAO, info2["versao"]):
                 self.atu.update(estado="disponivel", erro="Os arquivos novos foram instalados, mas não consegui abrir o Th Boost de novo. Feche e abra pelo atalho.")
                 return
             time.sleep(1.2)  # dá tempo da tela receber o "reiniciando"

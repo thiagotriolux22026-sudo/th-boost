@@ -207,7 +207,7 @@ class OverclockMixin:
         pot_ok = cod_p == 0 and cod_l == 0 and cod_n == 0
         i["potencia"] = {"ok": pot_ok, "agora": round((atual or 0) / 1000.0), "padrao": round((padrao or 0) / 1000.0),
                          "min": round(limites[0] / 1000.0) if limites else 0, "max": round(limites[1] / 1000.0) if limites else 0,
-                         "padrao_mw": padrao or 0, "min_mw": limites[0] if limites else 0, "max_mw": limites[1] if limites else 0,
+                         "padrao_mw": padrao or 0, "agora_mw": atual or 0, "min_mw": limites[0] if limites else 0, "max_mw": limites[1] if limites else 0,
                          "motivo": "" if pot_ok else _motivo_nvml(cod_p or cod_l or cod_n)}
         i["temp"] = nv.temperatura()
         i["mhz"] = nv.clock(0)
@@ -246,15 +246,31 @@ class OverclockMixin:
             if not info["algum"]:
                 return "Esta placa não aceita overclock por aqui: " + (info["nucleo"]["motivo"] or info["potencia"]["motivo"]) + "."
             core, mem, watts = oc_plano(nivel, info["teto"])
-            passos = []  # (nome, função da NVML, valor, valor ao zerar, ok?)
+            # v9.1: o "0%" volta ao que a placa tinha ANTES do Th Boost (por exemplo um ajuste feito no Afterburner),
+            # e não ao zero de fábrica
+            antes = CONFIG.get("oc_antes") if isinstance(CONFIG.get("oc_antes"), dict) else None
+            if nivel and not self._oc["nivel"] and not CONFIG.get("oc_ativo"):
+                antes = {"core": int(info["nucleo"]["agora"] or 0) if info["nucleo"]["ok"] else 0,
+                         "mem": int(info["memoria"]["agora"] or 0) if info["memoria"]["ok"] else 0,
+                         "pot_mw": int(info["potencia"]["agora_mw"]) if info["potencia"]["ok"] else 0}
+                CONFIG["oc_antes"] = antes
+            antes = antes or {}
+
+            def _volta(chave, padrao, minimo, maximo):
+                v = antes.get(chave)
+                return v if isinstance(v, int) and not isinstance(v, bool) and minimo <= v <= maximo else padrao
+            passos = []  # (nome, função da NVML, valor, valor ao zerar)
             if info["potencia"]["ok"]:
-                pot = info["potencia"]  # em miliwatts exatos: 0% devolve o padrão da placa sem arredondar
-                alvo_mw = pot["padrao_mw"] if not nivel else max(pot["min_mw"], min(watts * 1000, pot["max_mw"]))
-                passos.append(("potência", "nvmlDeviceSetPowerManagementLimit", alvo_mw, pot["padrao_mw"]))
+                pot = info["potencia"]  # em miliwatts exatos: 0% devolve o de antes (ou o padrão da placa) sem arredondar
+                zero_mw = _volta("pot_mw", pot["padrao_mw"], pot["min_mw"], pot["max_mw"])
+                alvo_mw = zero_mw if not nivel else max(pot["min_mw"], min(watts * 1000, pot["max_mw"]))
+                passos.append(("potência", "nvmlDeviceSetPowerManagementLimit", alvo_mw, zero_mw))
             if info["memoria"]["ok"]:
-                passos.append(("memória", "nvmlDeviceSetMemClkVfOffset", mem, 0))
+                zero = _volta("mem", 0, -3000, 3000)
+                passos.append(("memória", "nvmlDeviceSetMemClkVfOffset", mem if nivel else zero, zero))
             if info["nucleo"]["ok"]:
-                passos.append(("núcleo", "nvmlDeviceSetGpcClkVfOffset", core, 0))
+                zero = _volta("core", 0, -1000, 1000)
+                passos.append(("núcleo", "nvmlDeviceSetGpcClkVfOffset", core if nivel else zero, zero))
             falhas = []
             for nome, fn, valor, _ in passos:
                 cod = nv.definir(fn, valor)
@@ -267,18 +283,20 @@ class OverclockMixin:
                     nv.definir(fn, zero)
                 self._oc["nivel"] = 0
                 CONFIG.pop("oc_ativo", None)
+                CONFIG.pop("oc_antes", None)
                 salvar_config()
-                return "Não consegui aplicar (" + "; ".join(falhas) + "). A placa ficou no padrão."
+                return "Não consegui aplicar (" + "; ".join(falhas) + "). A placa ficou como estava."
             self._oc["nivel"] = nivel
             self._oc["aviso"] = motivo
             if nivel:
                 CONFIG["oc_ativo"] = True
             else:
                 CONFIG.pop("oc_ativo", None)
+                CONFIG.pop("oc_antes", None)
             salvar_config()
             self._oc["info"] = self._oc_ler()
             if not nivel:
-                return motivo or ("Overclock em 0%: a placa voltou ao padrão." + (" Alguns itens não responderam: " + "; ".join(falhas) if falhas else ""))
+                return motivo or ("Overclock em 0%: a placa voltou ao que era antes." + (" Alguns itens não responderam: " + "; ".join(falhas) if falhas else ""))
             partes = []
             if info["nucleo"]["ok"]:
                 partes.append(f"núcleo +{core} MHz")

@@ -6,8 +6,10 @@
 #
 # Regras de segurança:
 #  - só entram programas do PRÓPRIO usuário e só de tipos que costumam rodar em segundo plano: navegador, nuvem,
-#    atualizador, launcher, ajudante dispensável e programas comuns. Windows, antivírus, drivers, chat/reunião,
-#    o próprio Th Boost e qualquer jogo (da lista do Th Boost ou instalado nas pastas comuns de jogos) ficam de fora;
+#    atualizador e ajudante dispensável. Windows, antivírus, drivers, chat/reunião, launchers de jogos, programas de
+#    gravação/voz/áudio, o próprio Th Boost e qualquer jogo ficam de fora;
+#  - v9.1: o que um programa limitado abrir depois NÃO herda o limite (o Windows deixaria o filho no mesmo teto). Antes,
+#    um jogo aberto pela Steam entrava junto com a Steam no limite de 40% e travava.
 #  - o programa que está na frente (o que você está usando) nunca fica limitado: enquanto ele está em primeiro plano o
 #    teto sobe para 100% sozinho e volta quando você troca de janela;
 #  - dá para desligar a qualquer hora, e ao fechar o Th Boost o teto é solto (também na próxima abertura, se o
@@ -17,13 +19,26 @@
 
 CPU_MIN, CPU_MAX, CPU_PADRAO = 10, 90, 40
 CPU_JOB_NOME = "Local\\ThBoost_LimiteCPU"
-_CPU_CATS = frozenset({"navegador", "nuvem", "atualizador", "launcher", "dispensavel", "outro"})
+_CPU_CATS = frozenset({"navegador", "nuvem", "atualizador", "dispensavel"})  # v9.1: sem "launcher" (os jogos nascem dele) e sem "outro" (OBS, voz, áudio)
 _PASTAS_JOGO = ("\\steamapps\\common\\", "\\epic games\\", "\\gog games\\", "\\riot games\\", "\\xboxgames\\",
-                "\\ea games\\", "\\origin games\\", "\\ubisoft game launcher\\games\\", "\\games\\")
+                "\\ea games\\", "\\origin games\\", "\\ubisoft game launcher\\games\\", "\\games\\", "\\jogos\\")
 
 
 class _CpuRate(ctypes.Structure):
     _fields_ = [("ControlFlags", ctypes.c_uint32), ("CpuRate", ctypes.c_uint32)]
+
+
+class _JobBasico(ctypes.Structure):
+    _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64), ("PerJobUserTimeLimit", ctypes.c_int64),
+                ("LimitFlags", ctypes.c_uint32), ("MinimumWorkingSetSize", ctypes.c_size_t),
+                ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", ctypes.c_uint32),
+                ("Affinity", ctypes.c_size_t), ("PriorityClass", ctypes.c_uint32), ("SchedulingClass", ctypes.c_uint32)]
+
+
+class _JobEstendido(ctypes.Structure):
+    _fields_ = [("Basico", _JobBasico), ("Io", ctypes.c_uint64 * 6), ("ProcessMemoryLimit", ctypes.c_size_t),
+                ("JobMemoryLimit", ctypes.c_size_t), ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                ("PeakJobMemoryUsed", ctypes.c_size_t)]
 
 
 class ApiJob:
@@ -73,6 +88,15 @@ class ApiJob:
         try:
             info = _CpuRate(0x1 | 0x4, int(max(1, min(100, pct))) * 100)  # ENABLE | HARD_CAP, em centésimos de %
             return bool(self._k32().SetInformationJobObject(h, 15, ctypes.byref(info), ctypes.sizeof(info)))
+        except Exception:
+            return False
+
+    def filhos_livres(self, h):
+        """v9.1: o que um programa limitado abrir não entra no limite (JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK)."""
+        try:
+            info = _JobEstendido()
+            info.Basico.LimitFlags = 0x00001000
+            return bool(self._k32().SetInformationJobObject(h, 9, ctypes.byref(info), ctypes.sizeof(info)))
         except Exception:
             return False
 
@@ -293,6 +317,12 @@ class CpuMixin:
                 c["h"] = self.cpu_api.abrir(CPU_JOB_NOME, True)
                 if c["h"] is None:
                     c["erro"] = "O Windows não deixou criar o limite de CPU agora."
+                    return
+                livres = getattr(self.cpu_api, "filhos_livres", None)
+                if livres and not livres(c["h"]):  # sem isso, um jogo aberto por um programa limitado herdaria o teto
+                    self.cpu_api.fechar(c["h"])
+                    c["h"] = None
+                    c["erro"] = "O Windows não aceitou o limite de CPU com segurança, então ele ficou desligado."
                     return
                 c["teto"] = None
             c["erro"] = ""

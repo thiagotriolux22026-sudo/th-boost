@@ -1,11 +1,15 @@
 {
- "versao": "v9.0.1",
- "zip": "https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/atualizacao/Th-Boost-v9.0.1-atualizacao.zip",
- "sha256": "f1c66f9e224f6233f0690f0856a8ac76d72420291d3bab565b9c1b50f83549fd",
- "tamanho": 235821,
+ "versao": "v9.1",
+ "zip": "https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/atualizacao/Th-Boost-v9.1-atualizacao.zip",
+ "sha256": "092941aba04c4bfec71d5f4e0e0767e9476e621130433ed559e1f950d4922dca",
+ "tamanho": 259213,
  "data": "2026-11-04",
  "novidades": [
-  "Versão de teste do aviso de atualização (no uso, é igual à v9.0)",
-  "Atualização mais firme no Windows: arquivo extra em uso não cancela mais"
+  "Jogos sem travadinhas: Liberar a RAM inteligente e cache de shader da placa de vídeo preservado",
+  "Contador de FPS com o PresentMon novo, e Modo FPS On devolve tudo ao desligar",
+  "Plano de energia respeita o seu perfil de processador, o notebook na bateria e os Ryzen X3D",
+  "Mais segurança: lixeira, apps instalados por você, DNS, overclock e sessão de jogo",
+  "Novo Autoteste em Configurações, com relatório para copiar",
+  "Se uma versão nova não abrir no seu PC, o Th Boost volta sozinho para a anterior"
  ]
 }

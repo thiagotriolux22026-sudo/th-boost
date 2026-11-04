@@ -86,19 +86,36 @@ _BACKUP = None
 def _backup():
     global _BACKUP
     if _BACKUP is None:
-        try:
-            with open(ARQ_BACKUP, encoding="utf-8") as f:
-                _BACKUP = json.load(f)
-        except (OSError, ValueError):
+        for arq in (ARQ_BACKUP, ARQ_BACKUP + ".bak"):  # v9.1: arquivo estragado (queda de energia) -> usa a cópia anterior
+            try:
+                with open(arq, encoding="utf-8") as f:
+                    dados = json.load(f)
+            except (OSError, ValueError):
+                continue
+            if isinstance(dados, dict):
+                _BACKUP = dados
+                break
+        if _BACKUP is None:
             _BACKUP = {}
     return _BACKUP
 
 
 def _guardar_backup():
+    """v9.1: grava num temporário e troca de uma vez; a versão anterior fica em .bak."""
     try:
-        with open(ARQ_BACKUP, "w", encoding="utf-8") as f:
-            json.dump(_BACKUP or {}, f, ensure_ascii=False, indent=1)
-    except OSError:
+        texto = json.dumps(_BACKUP or {}, ensure_ascii=False, indent=1)
+        tmp = ARQ_BACKUP + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(texto)
+            f.flush()
+            os.fsync(f.fileno())
+        if os.path.isfile(ARQ_BACKUP):
+            try:
+                shutil.copyfile(ARQ_BACKUP, ARQ_BACKUP + ".bak")
+            except OSError:
+                pass
+        os.replace(tmp, ARQ_BACKUP)
+    except (OSError, TypeError, ValueError):
         pass  # sem permissão de escrita: o backup fica só na memória desta execução
 
 
@@ -148,17 +165,21 @@ class Ajuste:
 class AjusteReg(Ajuste):
     """Valores do registro. Cada item: (raiz, caminho, nome, tipo, valor_ligado, valor_padrao_do_windows)."""
 
-    def __init__(self, id, grupo, titulo, desc, itens, depois=None, **kw):
+    def __init__(self, id, grupo, titulo, desc, itens, depois=None, ausente_ligado=False, **kw):
         super().__init__(id, grupo, titulo, desc, **kw)
         self.itens = itens
         self.depois = depois
-        self.precisa_admin = any(i[0] == "HKLM" for i in itens)
+        self.ausente_ligado = ausente_ligado  # v9.1: o Windows já vem com isto ligado quando o valor não existe
+        self.precisa_admin = any(i[0] == "HKLM" or (i[0] == "HKCU" and i[1].lower().startswith("software\\policies"))
+                                 for i in itens)
 
     def estado(self):
         if REG is None:
             return None
         for raiz, caminho, nome, tipo, ligado, _ in self.itens:
             atual = REG.ler(raiz, caminho, nome)
+            if atual is None and self.ausente_ligado:
+                continue
             if atual is None or str(atual) != str(ligado):
                 return False
         return True
@@ -197,6 +218,7 @@ class AjusteServico(Ajuste):
     CHAVE = r"SYSTEM\CurrentControlSet\Services\%s"
 
     def __init__(self, id, grupo, titulo, desc, servicos, padroes=None, **kw):
+        self.legado = kw.pop("legado", False)
         super().__init__(id, grupo, titulo, desc, **kw)
         self.servicos = servicos if isinstance(servicos, (list, tuple)) else [servicos]
         self.padroes = padroes or {}  # início padrão do Windows por serviço: (tipo, atrasado). Se faltar: manual
@@ -205,6 +227,8 @@ class AjusteServico(Ajuste):
         return [s for s in self.servicos if REG is not None and REG.existe("HKLM", self.CHAVE % s)]
 
     def disponivel(self):
+        if getattr(self, "legado", False):  # v9.1: ajuste antigo: só aparece se estiver ligado, para dar para desfazer
+            return bool(self._existentes()) and self.estado() is True
         return bool(self._existentes())
 
     def estado(self):
@@ -239,9 +263,24 @@ class AjusteServico(Ajuste):
                 bk[self.id] = {s: [REG.ler("HKLM", self.CHAVE % s, "Start"),
                                    REG.ler("HKLM", self.CHAVE % s, "DelayedAutostart")] for s in self._existentes()}
                 _guardar_backup()
+        recusados = []
         for s in self._existentes():
-            executar(["sc", "config", s, "start=", "disabled"])
+            cod, _ = executar(["sc", "config", s, "start=", "disabled"])
+            if cod != 0 or REG.ler("HKLM", self.CHAVE % s, "Start") != 4:
+                try:  # v9.1: serviços por usuário (modelos) só mudam pelo registro
+                    REG.escrever("HKLM", self.CHAVE % s, "Start", 4, "dword")
+                except OSError:
+                    pass
+            if REG.ler("HKLM", self.CHAVE % s, "Start") != 4:
+                recusados.append(s)
+                continue
             executar(["sc", "stop", s])
+        if recusados:
+            try:
+                self.desligar()  # v9.1: tudo ou nada: os que já tinham mudado voltam como eram
+            except OSError:
+                pass
+            raise OSError("o Windows não deixou desligar: " + ", ".join(recusados))
 
     def desligar(self):
         with TRAVA_AJ:
@@ -257,7 +296,12 @@ class AjusteServico(Ajuste):
                 modo = "disabled"
             else:
                 modo = "demand"
-            executar(["sc", "config", s, "start=", modo])
+            cod, _ = executar(["sc", "config", s, "start=", modo])
+            if cod != 0 or REG.ler("HKLM", self.CHAVE % s, "Start") != inicio:
+                try:
+                    REG.escrever("HKLM", self.CHAVE % s, "Start", inicio, "dword")
+                except OSError:
+                    pass
             if inicio == 2:
                 executar(["sc", "start", s])
         with TRAVA_AJ:
@@ -306,14 +350,93 @@ class AjusteNagle(Ajuste):
                    for c in placas)
 
     def ligar(self):
+        with TRAVA_AJ:
+            bk = _backup()
+            antes = bk.setdefault(self.id, {})
+            for c in self._em_uso():
+                if c not in antes:  # v9.1: guarda o que cada placa tinha, para o desfazer voltar exatamente
+                    antes[c] = [REG.ler("HKLM", c, "TcpAckFrequency"), REG.ler("HKLM", c, "TCPNoDelay")]
+            _guardar_backup()
         for c in self._em_uso():
             REG.escrever("HKLM", c, "TcpAckFrequency", 1, "dword")
             REG.escrever("HKLM", c, "TCPNoDelay", 1, "dword")
 
     def desligar(self):
-        for guid in REG.subchaves("HKLM", self.BASE):
-            for nome in ("TcpAckFrequency", "TCPNoDelay"):
-                REG.apagar("HKLM", self.BASE + "\\" + guid, nome)
+        with TRAVA_AJ:
+            antes = _backup().get(self.id)
+        if isinstance(antes, dict) and antes:
+            for c, valores in antes.items():
+                for nome, v in zip(("TcpAckFrequency", "TCPNoDelay"), valores if isinstance(valores, list) else [None, None]):
+                    if isinstance(v, int):
+                        REG.escrever("HKLM", c, nome, v, "dword")
+                    else:
+                        REG.apagar("HKLM", c, nome)
+        else:  # ligado por uma versão antiga, sem backup
+            for c in self._em_uso():
+                for nome in ("TcpAckFrequency", "TCPNoDelay"):
+                    REG.apagar("HKLM", c, nome)
+        with TRAVA_AJ:
+            _backup().pop(self.id, None)
+            _guardar_backup()
+
+
+def dx_config_ler(texto):
+    """'A=1;B=0;' -> {'A': '1', 'B': '0'} (mantém a ordem). Função pura."""
+    res = {}
+    for parte in (texto or "").split(";"):
+        if "=" in parte:
+            k, v = parte.split("=", 1)
+            if k.strip():
+                res[k.strip()] = v.strip()
+    return res
+
+
+def dx_config_texto(d):
+    return "".join(f"{k}={v};" for k, v in d.items())
+
+
+class AjusteDxJanela(Ajuste):
+    """Otimizações para jogos em janela (Windows 11 22H2 ou mais novo). O valor do registro guarda outras opções do
+    DirectX juntas (HDR automático, VRR...), então só a parte SwapEffectUpgradeEnable é trocada."""
+    precisa_admin = False
+    CAMINHO, NOME, CHAVE = r"Software\Microsoft\DirectX\UserGpuPreferences", "DirectXUserGlobalSettings", "SwapEffectUpgradeEnable"
+
+    def disponivel(self):
+        if REG is None:
+            return False
+        try:
+            return sys.getwindowsversion().build >= 22621
+        except AttributeError:
+            return False
+
+    def estado(self):
+        if not self.disponivel():
+            return None
+        return dx_config_ler(REG.ler("HKCU", self.CAMINHO, self.NOME)).get(self.CHAVE) == "1"
+
+    def ligar(self):
+        atual = REG.ler("HKCU", self.CAMINHO, self.NOME)
+        with TRAVA_AJ:
+            bk = _backup()
+            if self.id not in bk:
+                bk[self.id] = {"antes": dx_config_ler(atual).get(self.CHAVE)}
+                _guardar_backup()
+        d = dx_config_ler(atual)
+        d[self.CHAVE] = "1"
+        REG.escrever("HKCU", self.CAMINHO, self.NOME, dx_config_texto(d), "sz")
+
+    def desligar(self):
+        with TRAVA_AJ:
+            antes = (_backup().get(self.id) or {}).get("antes")
+        d = dx_config_ler(REG.ler("HKCU", self.CAMINHO, self.NOME))
+        if antes is None:
+            d.pop(self.CHAVE, None)
+        else:
+            d[self.CHAVE] = antes
+        REG.escrever("HKCU", self.CAMINHO, self.NOME, dx_config_texto(d), "sz")
+        with TRAVA_AJ:
+            _backup().pop(self.id, None)
+            _guardar_backup()
 
 
 class AjusteTarefas(Ajuste):
@@ -362,15 +485,21 @@ class AjusteMemoriaComprimida(Ajuste):
             return None
         return bool(_backup().get(self.id))
 
+    AVISO = ("o Windows precisa do serviço SysMain (Superfetch) ligado para mudar a compressão de memória. "
+             "Desfaça o ajuste “Superfetch (SysMain)” e tente de novo.")
+
     def ligar(self):
-        cod, _ = powershell("Disable-MMAgent -MemoryCompression", tempo=40)
-        if cod == 0:
-            with TRAVA_AJ:
-                _backup()[self.id] = True
-                _guardar_backup()
+        cod, _ = powershell("Start-Service SysMain -ErrorAction SilentlyContinue; Disable-MMAgent -MemoryCompression", tempo=40)
+        if cod != 0:
+            raise OSError(self.AVISO)
+        with TRAVA_AJ:
+            _backup()[self.id] = True
+            _guardar_backup()
 
     def desligar(self):
-        powershell("Enable-MMAgent -MemoryCompression", tempo=40)
+        cod, _ = powershell("Start-Service SysMain -ErrorAction SilentlyContinue; Enable-MMAgent -MemoryCompression", tempo=40)
+        if cod != 0:  # v9.1: antes dizia "desfeito" mesmo quando o Windows recusava
+            raise OSError(self.AVISO)
         with TRAVA_AJ:
             _backup().pop(self.id, None)
             _guardar_backup()
@@ -502,11 +631,12 @@ def _montar_catalogo():
         R("menus_rapidos", "windows", "Menus instantâneos",
           "Tira o atraso de meio segundo para abrir os menus.",
           [("HKCU", r"Control Panel\Desktop", "MenuShowDelay", "sz", "0", "400")], rec=True),
-        R("prioridade_jogos", "windows", "Prioridade máxima para jogos",
-          "Diz ao Windows para dar mais tempo de processador aos jogos (ajuste MMCSS).",
+        R("prioridade_jogos", "windows", "Prioridade máxima para jogos (MMCSS)",
+          "Dá mais prioridade às tarefas que os jogos registram no agendador multimídia do Windows (MMCSS). "
+          "Poucos jogos usam isso, então o ganho costuma ser pequeno; não atrapalha.",
           [("HKLM", SP + r"\Tasks\Games", "Priority", "dword", 6, 2),
            ("HKLM", SP + r"\Tasks\Games", "Scheduling Category", "sz", "High", "Medium"),
-           ("HKLM", SP + r"\Tasks\Games", "SFIO Priority", "sz", "High", "Normal")], rec=True),
+           ("HKLM", SP + r"\Tasks\Games", "SFIO Priority", "sz", "High", "Normal")], ext=True),
         R("desligar_rapido", "windows", "Desligar o Windows mais rápido",
           "Reduz a espera para fechar programas travados ao desligar ou reiniciar.",
           [("HKCU", r"Control Panel\Desktop", "WaitToKillAppTimeout", "sz", "5000", None),
@@ -545,7 +675,8 @@ def _montar_catalogo():
         R("modo_jogo", "windows", "Modo de Jogo do Windows ligado",
           "Pede ao Windows para deixar o jogo em primeiro lugar e adiar atualizações e tarefas enquanto você joga.",
           [("HKCU", r"Software\Microsoft\GameBar", "AllowAutoGameMode", "dword", 1, None),
-           ("HKCU", r"Software\Microsoft\GameBar", "AutoGameModeEnabled", "dword", 1, None)], ext=True),
+           ("HKCU", r"Software\Microsoft\GameBar", "AutoGameModeEnabled", "dword", 1, None)], ext=True, ausente_ligado=True,
+          nota="O Windows 10 e 11 já vêm com ele ligado; aqui ele aparece desligado só se alguém desligou."),
         R("visual_minimo", "windows", "Visual do Windows no modo desempenho",
           "Liga o “Ajustar para obter o melhor desempenho” do Windows: sem fade de menus, sem rolagem suave e sem sombra no ponteiro. O Windows fica mais seco, porém mais ágil, sobretudo em PCs fracos.",
           [("HKCU", r"Control Panel\Desktop", "UserPreferencesMask", "bin", bytes.fromhex("9012038010000000"), bytes.fromhex("9e3e078012000000"))],
@@ -603,9 +734,10 @@ def _montar_catalogo():
         S("svc_fax", "servicos", "Fax", "Serviço de fax, sem uso hoje em dia.", "Fax", rec=True),
         S("svc_sysmain", "servicos", "Superfetch (SysMain)",
           "Pré-carrega programas na memória. Em SSD quase não ajuda e consome disco e RAM. Em HD mecânico, deixe ligado.", "SysMain", padroes={"SysMain": (2, None)}),
-        S("svc_dosvc", "servicos", "Entrega de atualizações para outros PCs (DoSvc)",
-          "Usa sua internet e seu disco para repassar atualizações do Windows a outros computadores. As suas atualizações continuam chegando normalmente.",
-          "DoSvc", padroes={"DoSvc": (2, 1)}, ext=True),
+        S("svc_dosvc", "servicos", "Serviço de entrega de atualizações desligado (versão antiga)",
+          "Versões antigas do Th Boost desligavam este serviço inteiro, o que pode atrapalhar downloads da Microsoft Store e do Game Pass. "
+          "Desfaça aqui; o ajuste novo “Não repassar atualizações para outros PCs” faz isso do jeito certo.",
+          "DoSvc", padroes={"DoSvc": (2, 1)}, legado=True),
         S("svc_trkwks", "servicos", "Rastreamento de atalhos (TrkWks)",
           "Procura arquivos que mudaram de lugar na rede para consertar atalhos. Quase ninguém usa.", "TrkWks", padroes={"TrkWks": (2, None)}, ext=True),
         S("svc_pcasvc", "servicos", "Assistente de compatibilidade (PcaSvc)",
@@ -623,12 +755,13 @@ def _montar_catalogo():
         S("svc_spooler", "servicos", "Impressão (Spooler)",
           "Só desligue se você não usa impressora. Ligado de novo, volta a imprimir.", "Spooler", padroes={"Spooler": (2, None)}, risco="medio"),
         S("svc_tablet", "servicos", "Teclado de toque e caneta",
-          "Desliga o teclado virtual e a caneta. Não use em tablets e notebooks com tela de toque.", "TabletInputService", risco="medio"),
+          "Desliga o teclado virtual e a caneta. Junto param também o histórico da área de transferência (Win+V), o painel de "
+          "emojis (Win+.) e a digitação por voz. Não use em tablets e notebooks com tela de toque.", "TabletInputService", risco="medio"),
         S("svc_xbox", "servicos", "Serviços do Xbox",
           "Quebra o login do Xbox e do Game Pass e o salvamento na nuvem de alguns jogos. Só desligue se não usa.",
           ["XblAuthManager", "XblGameSave", "XboxNetApiSvc", "XboxGipSvc"], risco="medio"),
         S("svc_usuario", "servicos", "Serviços por usuário (contas, contatos e sincronização)",
-          "O Windows cria uma cópia de vários serviços para cada usuário (sincronização de contas, contatos, mensagens e dispositivos conectados), e cada cópia vira um processo. Desligados, o app Email e Calendário do Windows deixa de sincronizar sozinho.",
+          "O Windows cria uma cópia de vários serviços para cada usuário (sincronização de contas, contatos, mensagens e dispositivos conectados), e cada cópia vira um processo. Desligados, o app Email e Calendário do Windows deixa de sincronizar sozinho, e param também o Vincular ao Celular, o Compartilhamento por Proximidade e a gravação de clipes pela Game Bar.",
           ["OneSyncSvc", "CDPUserSvc", "CDPSvc", "UnistoreSvc", "UserDataSvc", "PimIndexMaintenanceSvc", "MessagingService", "BcastDVRUserService"],
           padroes={"OneSyncSvc": (2, None), "CDPUserSvc": (2, None), "CDPSvc": (2, None)}, sup=True,
           nota="Os processos por usuário só somem depois de reiniciar o PC."),
@@ -708,6 +841,10 @@ def _montar_catalogo():
           "O Windows reduz a velocidade de programas que ele julga “em segundo plano”. Isto desliga essa freada, o que ajuda quem joga e grava ou transmite ao mesmo tempo.",
           [("HKLM", r"SYSTEM\CurrentControlSet\Control\Power\PowerThrottling", "PowerThrottlingOff", "dword", 1, None)],
           sup=True, so_mesa=True, fps=True, nota="Em notebook gasta mais bateria. Vale depois de reiniciar."),
+        AjusteDxJanela("fps_janela", "jogos", "Otimizações para jogos em janela",
+                       "Recurso do próprio Windows 11: jogos em janela ou em janela sem bordas (DirectX 10 e 11) passam a usar o mesmo "
+                       "caminho rápido da tela cheia. Menos atraso, e o G-Sync/FreeSync funciona também em janela.",
+                       rec=True, fps=True, nota="Vale ao abrir o jogo de novo. Só aparece no Windows 11."),
         R("fps_vbs", "jogos", "Isolamento de núcleo (VBS) desligado",
           "O Windows roda uma camada de segurança por virtualização que pode custar de 5% a 10% de FPS em alguns jogos. Desligar devolve esse desempenho, mas reduz a proteção do Windows contra certos ataques.",
           [("HKLM", r"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity", "Enabled", "dword", 0, None)],
@@ -715,12 +852,18 @@ def _montar_catalogo():
     ]
     # ----- Rede -----
     c += [
+        R("do_p2p", "rede", "Não repassar atualizações para outros PCs",
+          "O Windows usa a sua internet para enviar pedaços de atualizações a outros computadores (Otimização de Entrega). "
+          "Isto desliga só o repasse, pela regra oficial do Windows: as suas atualizações, a Microsoft Store e o Game Pass continuam baixando normalmente.",
+          [("HKLM", r"SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization", "DODownloadMode", "dword", 0, None)], rec=True),
         R("rede_throttle", "rede", "Sem limite de rede para multimídia",
-          "O Windows reserva parte da rede e do processador para áudio e vídeo. Isto libera esse limite.",
+          "Tira o limite que o Windows coloca na rede enquanto toca áudio ou vídeo. Só muda algo em downloads muito rápidos com música tocando; "
+          "não melhora o ping.",
           [("HKLM", SP, "NetworkThrottlingIndex", "dword", 0xFFFFFFFF, 10),
-           ("HKLM", SP, "SystemResponsiveness", "dword", 0, 20)], rec=True),
-        AjusteNagle("rede_nagle", "rede", "Menos atraso nos jogos online",
-                    "Desliga o algoritmo de Nagle, que junta pacotes pequenos antes de enviar. Melhora o ping em jogos.", rec=True),
+           ("HKLM", SP, "SystemResponsiveness", "dword", 0, 20)], ext=True),
+        AjusteNagle("rede_nagle", "rede", "Sem atraso de confirmação no TCP (Nagle)",
+                    "Faz o Windows confirmar pacotes TCP na hora. Só ajuda em jogos que usam TCP (alguns MMOs e jogos antigos); "
+                    "a maioria dos jogos online usa UDP e o ping não muda.", ext=True),
     ]
     return c
 
@@ -744,16 +887,24 @@ def estados_ajustes():
     return res
 
 
-_RESTAURACAO = {"feita": False}
+_RESTAURACAO = {"feita": False, "falhou": 0.0}
 
 
 def ponto_restauracao():
-    """Cria um ponto de restauração do Windows, uma vez por execução. Devolve True se criou."""
-    if _RESTAURACAO["feita"] or not IS_WIN:
+    """Cria um ponto de restauração do Windows (um por execução basta). True = existe um ponto desta execução.
+    v9.1: levanta o limite de 1 ponto por dia durante a criação e só se dá por feito quando o Windows criou mesmo."""
+    if not IS_WIN:
         return False
-    _RESTAURACAO["feita"] = True
-    cod, _ = powershell("Checkpoint-Computer -Description 'Th Boost' -RestorePointType MODIFY_SETTINGS", tempo=120)
-    return cod == 0
+    if _RESTAURACAO["feita"]:
+        return True
+    if time.time() - _RESTAURACAO["falhou"] < 600:  # falhou há pouco (Proteção do Sistema desligada): não espera de novo
+        return False
+    ok, _ = criar_ponto_manual("Th Boost")
+    if ok:
+        _RESTAURACAO["feita"] = True
+    else:
+        _RESTAURACAO["falhou"] = time.time()
+    return ok
 
 
 # ---------------- planos de energia ----------------
@@ -817,44 +968,108 @@ def ativar_plano(chave):
 # ---------------- DNS ----------------
 
 DNS_OPCOES = {"google": ("8.8.8.8", "8.8.4.4"), "cloudflare": ("1.1.1.1", "1.0.0.1")}
+DNS_OPCOES_V6 = {"google": ("2001:4860:4860::8888", "2001:4860:4860::8844"),
+                 "cloudflare": ("2606:4700:4700::1111", "2606:4700:4700::1001")}
 _PS_REDE_ATIVA = ("Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -ne $null -and "
-                  "$_.NetAdapter.Status -eq 'Up' }")
+                  "$_.NetAdapter.Status -eq 'Up' } | Select-Object -First 1")  # v9.1: lê e muda sempre a mesma placa
+_RX_IPV4 = r"\d{1,3}(?:\.\d{1,3}){3}"
 
 
-def dns_atual():
-    cod, saida = powershell(_PS_REDE_ATIVA + " | ForEach-Object { ($_.DNSServer | Where-Object { $_.AddressFamily -eq 2 } | "
-                            "ForEach-Object { $_.ServerAddresses }) -join ',' }", tempo=30)
-    servidores = []
-    if cod == 0:
-        for parte in re.split(r"[,\s]+", saida):
-            if re.fullmatch(r"\d+\.\d+\.\d+\.\d+", parte):
-                servidores.append(parte)
+def dns_interpretar(saida):
+    """Uma linha 'servidores|servidores fixos no registro|dhcp' por placa -> {'modo', 'servidores', 'dhcp'}. Função pura.
+    Sem servidores fixos no registro = o DNS vem do roteador (automático)."""
+    linha = next((l for l in (saida or "").splitlines() if "|" in l), "")
+    partes = (linha.split("|") + ["", "", ""])[:3]
+    servidores = re.findall(_RX_IPV4, partes[0])
+    fixos = re.findall(_RX_IPV4, partes[1])
+    dhcp = partes[2].strip().lower() in ("enabled", "true", "1")
     modo = "outro"
     for nome, par in DNS_OPCOES.items():
         if servidores[:2] == list(par):
             modo = nome
-    return {"modo": modo, "servidores": servidores[:2]}
+    if modo == "outro" and not fixos and dhcp:
+        modo = "auto"
+    return {"modo": modo, "servidores": servidores[:2], "dhcp": dhcp, "fixos": fixos[:4]}
+
+
+def dns_atual():
+    script = (_PS_REDE_ATIVA + " | ForEach-Object { "
+              "$s = ($_.DNSServer | Where-Object { $_.AddressFamily -eq 2 } | ForEach-Object { $_.ServerAddresses }) -join ','; "
+              "$p = 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces\\' + $_.NetAdapter.InterfaceGuid; "
+              "$f = (Get-ItemProperty -Path $p -Name NameServer -ErrorAction SilentlyContinue).NameServer; "
+              "$d = (Get-NetIPInterface -InterfaceIndex $_.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).Dhcp; "
+              "\"$s|$f|$d\" }")
+    cod, saida = powershell(script, tempo=30)
+    info = dns_interpretar(saida if cod == 0 else "")
+    with TRAVA_AJ:
+        antes = _backup().get("_dns_antes")
+    if isinstance(antes, dict) and antes.get("fixos") and info["modo"] in ("google", "cloudflare"):
+        info["antes"] = antes["fixos"][:2]  # dá para voltar ao DNS que você usava (por exemplo um filtro da família)
+    return info
 
 
 def dns_trocar(modo):
-    if modo == "auto":
-        acao = "-ResetServerAddresses"
-    elif modo in DNS_OPCOES:
-        acao = "-ServerAddresses ('%s','%s')" % DNS_OPCOES[modo]
-    else:
+    if modo not in ("auto", "antes") and modo not in DNS_OPCOES:
         return "Opção de DNS desconhecida."
+    info = dns_atual()
+    if modo in DNS_OPCOES and info["modo"] not in DNS_OPCOES:
+        with TRAVA_AJ:  # v9.1: guarda o DNS de antes (uma vez), para dar para voltar
+            bk = _backup()
+            if "_dns_antes" not in bk:
+                bk["_dns_antes"] = {"fixos": info["fixos"], "auto": info["modo"] == "auto"}
+                _guardar_backup()
+    if modo == "antes":
+        with TRAVA_AJ:
+            antes = _backup().get("_dns_antes") or {}
+        fixos = [x for x in antes.get("fixos") or [] if re.fullmatch(_RX_IPV4, x)]
+        if not fixos:
+            modo = "auto"
+        else:
+            cod, _ = powershell(_PS_REDE_ATIVA + " | ForEach-Object { Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex "
+                                "-ResetServerAddresses; Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex "
+                                "-ServerAddresses (" + ",".join(f"'{x}'" for x in fixos[:4]) + ") }", tempo=40)
+            executar(["ipconfig", "/flushdns"])
+            if cod == 0:
+                with TRAVA_AJ:
+                    _backup().pop("_dns_antes", None)
+                    _guardar_backup()
+                return "DNS de antes de volta (" + ", ".join(fixos[:2]) + ")."
+            return "Não foi possível trocar o DNS (abra como Administrador)."
+    if modo == "auto":
+        if not info["dhcp"] and info["servidores"]:
+            return ("Este PC usa IP fixo: no automático ele ficaria sem DNS e sem internet. "
+                    "Escolha Google ou Cloudflare, ou mude o IP para automático nas configurações de rede do Windows.")
+        acao = "-ResetServerAddresses"
+        acao6 = None
+    else:
+        acao = "-ServerAddresses ('%s','%s')" % DNS_OPCOES[modo]
+        acao6 = "-ServerAddresses ('%s','%s','%s','%s')" % (DNS_OPCOES[modo] + DNS_OPCOES_V6[modo])
     cod, _ = powershell(_PS_REDE_ATIVA + " | ForEach-Object { Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex "
                         + acao + " }", tempo=40)
+    if cod == 0 and acao6:  # também o IPv6, senão o DNS do provedor continua valendo por ele (sem IPv6, só ignora)
+        powershell(_PS_REDE_ATIVA + " | ForEach-Object { Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex "
+                   + acao6 + " -ErrorAction SilentlyContinue }", tempo=40)
     executar(["ipconfig", "/flushdns"])
+    if cod == 0 and modo == "auto":
+        with TRAVA_AJ:
+            _backup().pop("_dns_antes", None)
+            _guardar_backup()
     nomes = {"auto": "automático", "google": "Google (8.8.8.8)", "cloudflare": "Cloudflare (1.1.1.1)"}
     return f"DNS: {nomes[modo]}." if cod == 0 else "Não foi possível trocar o DNS (abra como Administrador)."
 
 
 def resetar_rede():
+    """Devolve (texto, precisa_reiniciar). v9.1: o 'netsh int ip reset' costuma dar 'acesso negado' em uma chave mesmo como
+    Administrador, mas o resto é feito; com o winsock resetado, basta reiniciar."""
+    if not e_admin():
+        return "Resetar a rede precisa de Administrador. Abra o Th Boost pelo atalho.", False
     a, _ = executar(["netsh", "winsock", "reset"], timeout=40)
     b, _ = executar(["netsh", "int", "ip", "reset"], timeout=40)
-    return ("Rede reiniciada. Reinicie o computador para terminar." if a == 0 and b == 0
-            else "Não foi possível resetar a rede (abra como Administrador).")
+    if a == 0 and b == 0:
+        return "Rede reiniciada. Reinicie o computador para terminar.", True
+    if a == 0 or b == 0:
+        return "Rede reiniciada (uma parte o Windows protege, isso é normal). Reinicie o computador para terminar.", True
+    return "O Windows não deixou resetar a rede agora.", False
 
 
 # ---------------- programas que abrem com o Windows ----------------
@@ -865,7 +1080,21 @@ FONTES_INICIO = [
     ("HKCU", _RUN, "HKCU", _APROVADO + r"\Run", "Usuário"),
     ("HKLM", _RUN, "HKLM", _APROVADO + r"\Run", "Todos os usuários"),
     ("HKLM", r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run", "HKLM", _APROVADO + r"\Run32", "Todos (32 bits)"),
+    # v9.1: atalhos na pasta Inicializar (o Gerenciador de Tarefas usa estas mesmas marcas para ligar/desligar)
+    ("PASTA", r"%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup", "HKCU", _APROVADO + r"\StartupFolder", "Pasta Inicializar"),
+    ("PASTA", r"%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp", "HKLM", _APROVADO + r"\StartupFolder",
+     "Pasta Inicializar (todos)"),
 ]
+
+
+def _itens_pasta_inicio(caminho):
+    pasta = os.path.expandvars(caminho)
+    try:
+        nomes = os.listdir(pasta)
+    except OSError:
+        return []
+    return [(n, os.path.join(pasta, n)) for n in nomes
+            if not n.lower().startswith("desktop.ini") and os.path.isfile(os.path.join(pasta, n))]
 
 
 def listar_inicio():
@@ -874,7 +1103,8 @@ def listar_inicio():
         return itens
     for n, (raiz, caminho, raiz_ap, caminho_ap, origem) in enumerate(FONTES_INICIO):
         aprovados = {n_.lower(): v for n_, v in REG.valores(raiz_ap, caminho_ap)}
-        for nome, comando in REG.valores(raiz, caminho):
+        fonte = _itens_pasta_inicio(caminho) if raiz == "PASTA" else REG.valores(raiz, caminho)
+        for nome, comando in fonte:
             if not isinstance(comando, str):
                 continue
             marca = aprovados.get(nome.lower())
@@ -910,27 +1140,36 @@ APPS = [
     ("Microsoft.YourPhone", "Vincular ao Celular", "baixo"), ("Microsoft.ZuneVideo", "Filmes e TV", "baixo"),
     ("Microsoft.SkypeApp", "Skype", "baixo"), ("Microsoft.MixedReality.Portal", "Realidade Mista", "baixo"),
     ("Microsoft.Microsoft3DViewer", "Visualizador 3D", "baixo"), ("Microsoft.Print3D", "Imprimir 3D", "baixo"),
-    ("Clipchamp.Clipchamp", "Clipchamp", "baixo"), ("Microsoft.Todos", "Microsoft To Do", "baixo"),
+    ("Clipchamp.Clipchamp", "Clipchamp", "baixo"), ("Microsoft.Todos", "Microsoft To Do", "medio"),
     ("Microsoft.PowerAutomateDesktop", "Power Automate", "baixo"), ("MicrosoftTeams", "Teams (versão pessoal)", "baixo"),
     ("Microsoft.549981C3F5F10", "Cortana", "baixo"), ("Microsoft.ZuneMusic", "Media Player / Groove", "medio"),
     ("king.com.CandyCrushSaga", "Candy Crush Saga", "baixo"), ("king.com.CandyCrushSodaSaga", "Candy Crush Soda", "baixo"),
-    ("SpotifyAB.SpotifyMusic", "Spotify (pré-instalado)", "baixo"), ("BytedancePte.Ltd.TikTok", "TikTok", "baixo"),
-    ("Disney.37853FC22B2CE", "Disney+", "baixo"), ("4DF9E0F8.Netflix", "Netflix", "baixo"),
-    ("Facebook.Facebook", "Facebook", "baixo"), ("Facebook.InstagramBeta", "Instagram", "baixo"),
-    ("AmazonVideo.PrimeVideo", "Prime Video", "baixo"),
+    # v9.1: estes podem ter sido instalados por você (com downloads e login dentro): só saem se você marcar um por um
+    ("SpotifyAB.SpotifyMusic", "Spotify", "medio"), ("BytedancePte.Ltd.TikTok", "TikTok", "medio"),
+    ("Disney.37853FC22B2CE", "Disney+", "medio"), ("4DF9E0F8.Netflix", "Netflix", "medio"),
+    ("Facebook.Facebook", "Facebook", "medio"), ("Facebook.InstagramBeta", "Instagram", "medio"),
+    ("AmazonVideo.PrimeVideo", "Prime Video", "medio"),
     ("Microsoft.XboxApp", "Xbox (app antigo)", "medio"), ("Microsoft.GamingApp", "Xbox (Game Pass)", "medio"),
     ("Microsoft.XboxGamingOverlay", "Xbox Game Bar", "medio"),
 ]
 APPS_POR_NOME = {a[0]: a for a in APPS}
 
 
-def listar_apps():
-    """Apps da lista segura que estão instalados neste computador."""
-    cod, saida = powershell("Get-AppxPackage -AllUsers | Select-Object -ExpandProperty Name", tempo=90)
+def listar_apps_info():
+    """Apps da lista segura que estão instalados. Devolve (lista, erro). v9.1: antes um erro parecia 'Windows já limpo'."""
+    if not IS_WIN:
+        return [], ""
+    todos = e_admin()
+    cod, saida = powershell("Get-AppxPackage" + (" -AllUsers" if todos else "") + " | Select-Object -ExpandProperty Name", tempo=90)
     if cod != 0:
-        return []
+        return [], "O Windows não respondeu a lista de apps agora. Tente de novo em alguns segundos."
     instalados = {linha.strip() for linha in saida.splitlines()}
-    return [{"nome": n, "titulo": t, "risco": r} for n, t, r in APPS if n in instalados]
+    lista = [{"nome": n, "titulo": t, "risco": r} for n, t, r in APPS if n in instalados]
+    return lista, ("" if todos else "Mostrando só os apps da sua conta. Para remover, abra o Th Boost como Administrador.")
+
+
+def listar_apps():
+    return listar_apps_info()[0]
 
 
 def remover_apps(nomes):

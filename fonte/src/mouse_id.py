@@ -453,7 +453,7 @@ class MouseIdMixin:
         if not d["chave"]:
             return self.msg("Escolha a marca ou o modelo do mouse primeiro.")
         try:
-            webbrowser.open(link_busca_foto(d["marca"], d["modelo"]))
+            abrir_link(link_busca_foto(d["marca"], d["modelo"]))
             self.msg("Abrindo a busca de imagens. Salve a foto que gostar e use \"Usar minha foto\".")
         except Exception:
             self.msg("Não consegui abrir o navegador.")
@@ -470,22 +470,60 @@ class MouseIdMixin:
             self.msg("Mouse: voltei a reconhecer sozinho.")
         salvar_config()
 
-    def t_mouse_perfil(self, ligar):
-        """Perfil competitivo: sem aceleração do ponteiro, velocidade 10 (a do Windows, 1 para 1) e USB sem suspensão."""
+    def _perfil_itens(self, chave, itens, ligar):
+        """v9.1: liga os ajustes de um perfil lembrando quais ELE ligou; ao desligar, desfaz só esses (o que você já tinha
+        ligado antes continua ligado) e não desfaz o que o outro perfil (mouse/teclado) ainda usa."""
         avisos, feitos = [], []
-        for ident, rotulo in (("mouse_acel", "sem aceleração"), ("mouse_usb", "USB sem suspensão")):
+        outro = "teclado" if chave == "mouse" else "mouse"
+        with TRAVA_AJ:
+            bk = _backup()
+            legado = ("perfil_" + chave) not in bk
+            meus = [i for i in (bk.get("perfil_" + chave) or []) if isinstance(i, str)]
+            do_outro = set(i for i in (bk.get("perfil_" + outro) or []) if isinstance(i, str))
+            outro_legado = ("perfil_" + outro) not in bk
+        if not ligar and legado:  # ligado por uma versão antiga (sem a lista): desfaz o perfil inteiro
+            meus = [i for i, _ in itens]
+            if outro_legado:  # o outro perfil também é antigo: se ele parece ligado, o USB fica com ele
+                itens_outro = {"mouse": ("mouse_acel",), "teclado": ("teclado_rapido", "teclas_aderencia")}[outro]
+                try:
+                    if all(POR_ID[i].estado() is True for i in itens_outro):
+                        do_outro.add("mouse_usb")
+                except Exception:
+                    pass
+        for ident, rotulo in itens:
             a = POR_ID[ident]
             try:
-                if a.estado() is ligar:
-                    feitos.append(rotulo)
-                    continue
+                if ligar:
+                    if a.estado() is True:
+                        feitos.append(rotulo)
+                        if ident in do_outro and ident not in meus:
+                            meus.append(ident)  # dividido com o outro perfil: só sai quando os dois desligarem
+                        continue
+                elif ident not in meus or ident in do_outro:
+                    continue  # não foi este perfil que ligou (ou o outro perfil ainda precisa dele)
                 if a.precisa_admin and not e_admin():
                     avisos.append(f"{a.titulo} precisa de Administrador (feche e abra o Th Boost pelo atalho)")
                     continue
                 a.ligar() if ligar else a.desligar()
                 feitos.append(rotulo)
+                if ligar and ident not in meus:
+                    meus.append(ident)
+                elif not ligar:
+                    meus = [i for i in meus if i != ident]
             except OSError as erro:
                 avisos.append(f"{a.titulo}: {erro}")
+        with TRAVA_AJ:
+            bk = _backup()
+            if ligar:
+                bk["perfil_" + chave] = meus
+            else:
+                bk.pop("perfil_" + chave, None)  # desligado: o que sobrou na lista era dividido com o outro perfil
+            _guardar_backup()
+        return avisos, feitos
+
+    def t_mouse_perfil(self, ligar):
+        """Perfil competitivo: sem aceleração do ponteiro, velocidade 10 (a do Windows, 1 para 1) e USB sem suspensão."""
+        avisos, feitos = self._perfil_itens("mouse", (("mouse_acel", "sem aceleração"), ("mouse_usb", "USB sem suspensão")), ligar)
         if ligar:
             antes = velocidade_mouse()
             if antes != 10:
@@ -509,21 +547,9 @@ class MouseIdMixin:
 
     def t_teclado_perfil(self, ligar):
         """Teclado rápido: a tecla segurada repete sem espera, nada de aviso de acessibilidade no meio do jogo e USB sem suspensão."""
-        avisos, feitos = [], []
-        for ident, rotulo in (("teclado_rapido", "repetição sem espera"), ("teclas_aderencia", "sem avisos de Shift"),
-                              ("mouse_usb", "USB sem suspensão")):
-            a = POR_ID[ident]
-            try:
-                if a.estado() is ligar:
-                    feitos.append(rotulo)
-                    continue
-                if a.precisa_admin and not e_admin():
-                    avisos.append(f"{a.titulo} precisa de Administrador (feche e abra o Th Boost pelo atalho)")
-                    continue
-                a.ligar() if ligar else a.desligar()
-                feitos.append(rotulo)
-            except OSError as erro:
-                avisos.append(f"{a.titulo}: {erro}")
+        avisos, feitos = self._perfil_itens("teclado", (("teclado_rapido", "repetição sem espera"),
+                                                         ("teclas_aderencia", "sem avisos de Shift"),
+                                                         ("mouse_usb", "USB sem suspensão")), ligar)
         self.atualizar_aj()
         if ligar:
             texto = "Teclado rápido ligado: " + ", ".join(feitos) + "."

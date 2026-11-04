@@ -1,14 +1,24 @@
 # Th Boost
 
-Painel de otimização e monitoramento para Windows (preto e azul). Versão atual: **v9.0.1**.
+Painel de otimização e monitoramento para Windows (preto e azul). Versão atual: **v9.1**.
 
 ## Como baixar (em qualquer computador, sem login)
 
 1. Clique neste link para baixar o ZIP pronto:
-   **[⬇ Baixar o Th Boost v9.0.1](https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.0.1.zip)**
-   (endereço: https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.0.1.zip)
-2. Clique com o botão direito no arquivo baixado e escolha **Extrair para "Th-Boost-v9.0.1\"**.
+   **[⬇ Baixar o Th Boost v9.1](https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.1.zip)**
+   (endereço: https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.1.zip)
+2. Clique com o botão direito no arquivo baixado e escolha **Extrair para "Th-Boost-v9.1\"**.
 3. Abra a pasta e leia o **LEIAME.txt** (ele explica tudo com calma).
+
+## Novidades da v9.1
+
+Revisão completa: cada página foi conferida.
+- **Jogos sem travadinhas:** "Liberar a RAM" só age com a memória apertada e nunca mexe no jogo, no Discord, no OBS ou no áudio; a limpeza não apaga mais o cache de shader da placa de vídeo; durante o jogo o Th Boost lê menos coisas; o limite de CPU não pega mais launchers nem os jogos abertos por eles.
+- **FPS:** funciona com o PresentMon 2.x e mostra o FPS do jogo da frente. O Modo FPS On devolve o Modo Leve e o plano de energia ao desligar.
+- **Plano de energia:** respeita o perfil de processador escolhido, não troca na bateria e não atrapalha os Ryzen X3D de 2 blocos.
+- **Mais seguro:** "Otimizar tudo" não esvazia mais a lixeira; apps que você pode ter instalado (Spotify, Netflix...) viraram risco médio; DNS automático não derruba PC com IP fixo; overclock em 0% volta ao que a placa tinha; se o PC desligar no meio de um jogo, tudo volta ao normal na próxima vez.
+- **Autoteste** em Configurações, com "Copiar relatório".
+- **Atualização com volta automática:** se uma versão nova não abrir, em até 2 minutos o Th Boost volta para a anterior.
 
 ## Novidades da v9.0.1
 

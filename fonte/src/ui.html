@@ -339,6 +339,13 @@ input[type=range]:disabled{opacity:.4}
 .rk.medio{color:#fcd38b;border-color:#5a3f12;background:rgba(245,158,11,.1)}
 .rk.rec{color:#b5d4fd;border-color:#16417a;background:rgba(51,137,250,.1)}
 .rk.nt{color:#9fc8fd;border-color:#1e4d8a;background:rgba(59,140,246,.1)}
+.rk.erro{color:#fca5a5;border-color:#7f1d1d;background:rgba(239,68,68,.1)}
+/* autoteste */
+.atl{display:grid;gap:2px;margin-top:14px}.atg{font-size:11px;font-weight:800;letter-spacing:.12em;color:var(--m);margin:12px 0 4px;text-transform:uppercase}
+.atr{display:grid;grid-template-columns:74px minmax(0,1fr) auto;gap:12px;align-items:start;padding:9px 12px;border-radius:12px;background:#0d1116;border:1px solid #161c24}
+.atr b{font-size:14px}.atr p{margin:2px 0 0;font-size:13px;line-height:1.45;color:#a9b4c2;overflow-wrap:anywhere}.atr .rk{justify-self:start;margin-top:2px}
+.atr.testando{opacity:.75}.atr .bt{padding:6px 12px;font-size:12px}
+@media (max-width:560px){.atr{grid-template-columns:64px minmax(0,1fr)}.atr .bt{grid-column:2}}
 .avs{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-radius:14px;border:1px solid #5a3f12;background:rgba(245,158,11,.08);color:#fcd38b;margin-bottom:16px;line-height:1.45}
 .avs[hidden],.aj p[hidden],.bt[hidden]{display:none}
 .avs .ico{margin-top:1px}
@@ -1015,7 +1022,7 @@ html.leve .atu-not,html.leve .atu-card{animation:none}html.leve .atu-not{-webkit
         <div class="grade gA" style="grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)">
           <div class="cd led" style="--i:0">
             <h3>Otimização completa</h3>
-            <p>Limpa temporários, navegadores, caches de programas e lixo do Windows, esvazia a lixeira, libera a memória, ativa o plano Alto desempenho e limpa o DNS. Nada é desinstalado e senhas e históricos ficam como estão.</p>
+            <p>Limpa temporários, navegadores, caches de programas e lixo do Windows, libera a memória se ela estiver apertada, ativa o plano Alto desempenho (se você não escolheu um perfil de processador) e limpa o DNS. A lixeira não é esvaziada, nada é desinstalado e senhas e históricos ficam como estão.</p>
             <div class="passos" id="passos"></div>
             <div class="otlib"><span>Lixo apagado nesta rodada</span><b id="otMb">0 MB</b></div>
             <div class="linha" style="margin-top:20px"><button class="bt p grande" data-a="otimizar_tudo" id="otBt"><svg class="ico" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg><span>Otimizar tudo</span></button></div>
@@ -1150,7 +1157,7 @@ html.leve .atu-not,html.leve .atu-card{animation:none}html.leve .atu-not{-webkit
       <section class="pg" id="p-modos">
         <div class="grade g2">
           <div class="cd led modo-c" style="--i:0"><h2>Modo Leve</h2><p>Programas em segundo plano recebem prioridade baixa. O app em foco fica com prioridade alta.</p><div class="lin"><button class="sw" id="swLeve" aria-label="Modo Leve"><i></i></button><span class="st" id="stLeve">DESLIGADO</span></div></div>
-          <div class="cd led modo-c" style="--i:1"><h2>Modo FPS On</h2><p id="fpsDesc">Liga o contador de FPS (precisa do PresentMon.exe), o Modo Leve e o plano Alto desempenho.</p><div class="lin"><button class="sw" id="swFps" aria-label="Modo FPS On"><i></i></button><span class="st" id="stFps">DESLIGADO</span></div></div>
+          <div class="cd led modo-c" style="--i:1"><h2>Modo FPS On</h2><p id="fpsDesc">Liga o contador de FPS (precisa do PresentMon), o Modo Leve e o plano Alto desempenho. Ao desligar, tudo volta como estava.</p><div class="lin"><button class="sw" id="swFps" aria-label="Modo FPS On"><i></i></button><span class="st" id="stFps">DESLIGADO</span></div></div>
         </div>
         <div class="cd" style="--i:2"><h3>Como funciona</h3><p>Nada é encerrado: o Modo Leve só muda a prioridade de execução dos seus programas, e tudo volta ao normal ao desligar ou ao fechar o Th Boost.</p></div>
       </section>
@@ -1313,6 +1320,7 @@ html.leve .atu-not,html.leve .atu-card{animation:none}html.leve .atu-not{-webkit
           <div class="cd" style="--i:1"><h3>Diagnóstico</h3><div class="dg" id="dg"></div></div>
         </div>
         <div class="cd" style="--i:2" id="atuCfg"><div class="linha" style="flex-wrap:wrap;align-items:center;gap:16px"><div style="flex:1;min-width:220px"><b style="font-size:16px">Atualizações</b><p style="margin-top:3px" id="atuSt">Ainda não procurei versão nova.</p></div><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><button class="sw on" id="swAtu" aria-label="Avisar quando o dono publicar versão nova" aria-pressed="true"><i></i></button><span class="st on" id="stAtu">AVISAR</span><button class="bt" id="atuAgora">Procurar agora</button></div></div></div>
+        <div class="cd" style="--i:3;margin-top:16px" id="atCfg"><div class="linha" style="flex-wrap:wrap;align-items:center;gap:16px"><div style="flex:1;min-width:220px"><b style="font-size:16px">Autoteste</b><p style="margin-top:3px" id="atSt">Confere, neste computador, se cada parte do Th Boost funciona. Só lê: não muda nada no Windows. O relatório não leva seu nome nem o nome do PC.</p></div><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><button class="bt p" id="atRun">Fazer autoteste</button><button class="bt" id="atCopy" hidden>Copiar relatório</button></div></div><div class="atl" id="atLista" hidden></div></div>
         <div class="cd" style="--i:2"><div class="linha" style="flex-wrap:nowrap;align-items:center;gap:16px"><div style="flex:1;min-width:0"><b style="font-size:16px">Encerrar o Th Boost</b><p style="margin-top:3px">Fecha o programa de vez, mesmo que ele esteja em segundo plano. As prioridades voltam ao normal.</p></div><button class="bt" data-c="encerrar_tudo" data-ct="Encerrar o Th Boost?" data-cp="O programa fecha por completo e o Modo Leve é desligado. Para usar de novo, abra pelo atalho.">Encerrar</button></div></div>
       </section>
     </div>
@@ -1483,7 +1491,7 @@ $('#swBg').onclick=()=>acao('segundo_plano',{ligar:!$('#swBg').classList.contain
 $('#atuSim').onclick=()=>{$('#atuSim').disabled=true;acao('atu_instalar').finally(()=>{$('#atuSim').disabled=false})};
 $('#atuNao').onclick=$('#atuX').onclick=()=>{const a=S&&S.atu;if(a&&a.nova){atuDepois=a.nova;try{sessionStorage.setItem('thboost-atu-depois',a.nova)}catch(e){}}$('#atuNot').hidden=true;toast('Tudo bem. O aviso volta quando você abrir o Th Boost de novo (ou em Configurações › Atualizações).')};
 $('#swAtu').onclick=()=>acao('atu_avisar',{ligar:!$('#swAtu').classList.contains('on')});
-$('#atuAgora').onclick=()=>{atuDepois='';try{sessionStorage.removeItem('thboost-atu-depois')}catch(e){}acao('atu_procurar')};$('#swLeve').onclick=()=>acao('leve');$('#swFps').onclick=()=>acao('fps');$('#swFps2').onclick=()=>acao('fps');
+$('#atRun').onclick=()=>acao('autoteste');$('#atCopy').onclick=atCopiar;$('#atuAgora').onclick=()=>{atuDepois='';try{sessionStorage.removeItem('thboost-atu-depois')}catch(e){}acao('atu_procurar')};$('#swLeve').onclick=()=>acao('leve');$('#swFps').onclick=()=>acao('fps');$('#swFps2').onclick=()=>acao('fps');
 $('#rg').addEventListener('input',()=>rgTxt());
 $('#ocAp').onclick=()=>{const n=+$('#rg').value,oc=(S&&S.oc)||{};
  if(S&&!S.admin)return toast('O overclock precisa do Th Boost aberto como Administrador. Feche e abra pelo atalho da área de trabalho.');
@@ -1532,8 +1540,22 @@ function atuMostra(a){if(!a)return;const box=$('#atuNot');
 function atuEspera(){const t0=Date.now();const passo=async()=>{let caiu=false;try{const r=await fetch('/api/ping?k='+K,{cache:'no-store'});if(!r.ok)caiu=true}catch(e){caiu=true}
   if(caiu){try{const r2=await fetch('/',{cache:'no-store'});if(r2.ok){location.reload();return}}catch(e){}}
   if(Date.now()-t0<45000)setTimeout(passo,800);else $('#atuTx').textContent='Demorou mais que o normal. Feche e abra o Th Boost pelo atalho.'};setTimeout(passo,1500)}
+function atMostra(a){if(!a)return;const lst=$('#atLista');if(!lst)return;
+ const rod=a.estado==='rodando';$('#atRun').disabled=rod;$('#atRun').textContent=rod?'Testando…':(a.estado==='pronto'?'Fazer de novo':'Fazer autoteste');$('#atCopy').hidden=a.estado!=='pronto';
+ if(a.estado==='nunca'||!a.itens.length){lst.hidden=true;return}
+ const sig=JSON.stringify(a.itens);if(lst.dataset.s===sig)return;lst.dataset.s=sig;lst.hidden=false;
+ const n={ok:0,aviso:0,erro:0};a.itens.forEach(i=>{if(i.st in n)n[i.st]++});
+ $('#atSt').textContent=rod?'Testando cada parte…':`Pronto: ${n.ok} ok, ${n.aviso} aviso(s), ${n.erro} erro(s). Copie o relatório e mande para o dono se algo deu errado.`;
+ const CH={ok:['baixo','OK'],aviso:['medio','AVISO'],erro:['erro','ERRO'],pulado:['nt','—'],testando:['nt','…'],esperando:['nt','…']};let g='',h='';
+ a.itens.forEach(i=>{if(i.grupo!==g){g=i.grupo;h+=`<div class="atg">${esc(g)}</div>`}const c=CH[i.st]||CH.pulado;
+  h+=`<div class="atr ${i.st==='testando'?'testando':''}"><span class="rk ${c[0]}">${c[1]}</span><div><b>${esc(i.rotulo)}</b><p>${esc(i.txt||(i.st==='testando'?'testando…':''))}</p></div>${i.acao?`<button class="bt" data-a="${esc(i.acao)}">Corrigir</button>`:''}</div>`});
+ lst.innerHTML=h}
+async function atCopiar(){let t='';try{t=(await pegar('autoteste')).texto||''}catch(e){}if(!t)return toast('O relatório ainda não está pronto.');
+ let ok=false;try{await navigator.clipboard.writeText(t);ok=true}catch(e){}
+ if(!ok){const ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{ok=document.execCommand('copy')}catch(e){}ta.remove()}
+ toast(ok?'Relatório copiado. Cole na conversa com o dono (Ctrl+V).':'Não consegui copiar. Selecione o texto e copie.')}
 function atualizar(s){
- atuMostra(s.atu);
+ atuMostra(s.atu);atMostra(s.at);
  /* avisos novos */
  const mx=s.hist.length?s.hist[0].id:0;
  if(ultMsg===null)ultMsg=mx;else if(mx>ultMsg){const nv=s.hist.filter(h=>h.id>ultMsg).reverse();nv.forEach(h=>toast(h.t));ultMsg=mx;aposMsg(nv)}
@@ -1546,7 +1568,7 @@ function atualizar(s){
  $('#heroEst').textContent=o.ativo?o.passo:'Pronto para otimizar';
  ['heroBt','otBt'].forEach(id=>{const b=$('#'+id);b.disabled=o.ativo;b.querySelector('span').textContent=o.ativo?'Otimizando...':(id==='heroBt'?'Começar otimização':'Otimizar tudo')});
  if(o0.passos&&o0.passos.length){const sg=JSON.stringify(o0.passos);if($('#passos').dataset.s!==sg){$('#passos').dataset.s=sg;$('#passos').innerHTML=o0.passos.map(p=>`<div class="ps ${p.estado}"><span class="pi">${ico('check')}</span><div><b>${esc(p.nome)}</b><small>${esc(p.texto||(p.estado==='rodando'?'Em andamento...':'Aguardando'))}</small></div>${p.mb>=0.1?`<span class="mb">${fmtMB(p.mb)}</span>`:''}</div>`).join('')}tween($('#otMb'),o0.mb||0,fmtMB)}
- else if(!$('#passos').dataset.v){$('#passos').dataset.v=1;$('#passos').innerHTML=['Limpar temporários','Limpar os navegadores','Limpar caches de programas','Limpeza do Windows','Esvaziar a lixeira','Liberar a RAM','Plano de energia','Limpar o DNS'].map(n=>`<div class="ps"><span class="pi">${ico('check')}</span><div><b>${n}</b><small>Aguardando</small></div></div>`).join('')}
+ else if(!$('#passos').dataset.v){$('#passos').dataset.v=1;$('#passos').innerHTML=['Limpar temporários','Limpar os navegadores','Limpar caches de programas','Limpeza do Windows','Liberar a RAM','Plano de energia','Limpar o DNS'].map(n=>`<div class="ps"><span class="pi">${ico('check')}</span><div><b>${n}</b><small>Aguardando</small></div></div>`).join('')}
  /* histórico */
  const hs=s.hist.map(h=>h.id).join(',');if($('#hist').dataset.s!==hs){$('#hist').dataset.s=hs;$('#hist').innerHTML=s.hist.length?s.hist.map(h=>`<div class="hi"><time>${h.h}</time><span>${esc(h.t)}</span></div>`).join(''):'<div class="vz" style="padding:24px"><span>Nenhuma ação ainda. Clique em um botão para começar.</span></div>'}
  /* início */
@@ -1582,7 +1604,7 @@ function atualizar(s){
  $('#fpsS').textContent=er?er:(s.fps_ligado&&s.fps!=null?`em ${s.fps_app}`:'Ligue o Modo FPS On para ver os quadros.');$('#fpsBt').textContent=s.fps_ligado?'Desligar FPS':'Ligar FPS';
  /* modos */
  [['swLeve','stLeve',s.modo_leve],['swFps','stFps',s.fps_ligado],['swFps2','stFps2',s.fps_ligado]].forEach(([a,b,v])=>{$('#'+a).classList.toggle('on',v);const e=$('#'+b);e.textContent=v?'LIGADO':'DESLIGADO';e.classList.toggle('on',v);if(b==='stFps2')e.style.color=v?'#ffffff':''});
- $('#fpsDesc').textContent=er||'Liga o contador de FPS (precisa do PresentMon.exe), o Modo Leve e o plano Alto desempenho.';$('#jgFps').textContent=er||'Liga o contador de FPS e o modo leve de processos.';
+ $('#fpsDesc').textContent=er||'Liga o contador de FPS (precisa do PresentMon), o Modo Leve e o plano Alto desempenho. Ao desligar, tudo volta como estava.';$('#jgFps').textContent=er||'Liga o contador de FPS e o modo leve de processos.';
  /* disco */
  $('#dkT').textContent=disco?`${Math.round(disco.livre)} GB livres de ${Math.round(disco.total)} GB`:'Disco indisponível';$('#dkB').style.width=dp+'%';$('#dkP').textContent=disco?Math.round(dp)+'%':'N/D';
  anel('vlDisco','nDisco',disco?disco.pct:null,'N/D');$('#sbDisco').textContent=disco?`${Math.round(disco.livre)} GB livres`:'';
@@ -1633,9 +1655,9 @@ const vazio=(ic,t,p)=>`<div class="cd"><div class="vz"><div class="ic">${ico(ic)
  $('#p-servicos').innerHTML=`<div class="avs verm" style="--i:0">${ico('info')}<span>Desligue só o que você sabe que não usa e leia a descrição de cada serviço antes de ligar o ajuste. Os de <b>risco médio</b> pedem sua confirmação.</span></div>`+cab('servicos',1)+lista('servicos',2)+info(3,'Como desfazer',RODAPE);
  $('#p-inicializacao').innerHTML=`<div class="cd led cab" style="--i:0"><div><h2>Programas que abrem com o Windows</h2><p>Desligar impede o programa de abrir sozinho ao ligar o PC. Ele continua instalado e dá para ligar de novo aqui.</p><div class="ctr" id="ct-inicio">&nbsp;</div></div><div class="linha"><button class="bt g" id="inRe">Atualizar lista</button></div></div><div class="ajs um" id="lsInicio" style="--i:1"></div>`;
  $('#p-privacidade').innerHTML=cab('privacidade',0)+lista('privacidade',1)+info(2,'Como desfazer',RODAPE);
- $('#p-debloat').innerHTML=`<div class="avs verm" style="--i:0">${ico('info')}<span>Este é o único ajuste que <b>não volta com um clique</b>: um app removido só volta pela Microsoft Store. Por isso a lista tem só apps seguros e nada é removido sem a sua confirmação.</span></div><div class="avs" id="av-debloat" hidden></div><div class="cd led cab" style="--i:1"><div><h2>Apps que vêm com o Windows</h2><p>Marque os que você não usa. Só aparecem os que estão instalados neste computador.</p><div class="ctr" id="ct-apps">&nbsp;</div></div><div class="linha"><button class="bt g" id="apTodos">Marcar todos</button><button class="bt g" id="apNenhum">Limpar</button><button class="bt p g" id="apRem" disabled>Remover selecionados</button></div></div><div class="apg" id="lsApps" style="--i:2"></div>`;
+ $('#p-debloat').innerHTML=`<div class="avs verm" style="--i:0">${ico('info')}<span>Este é o único ajuste que <b>não volta com um clique</b>: um app removido só volta pela Microsoft Store. Por isso a lista tem só apps seguros e nada é removido sem a sua confirmação. Os de risco médio (Spotify, Netflix, Xbox...) você pode ter instalado de propósito: marque um por um.</span></div><div class="avs" id="av-debloat" hidden></div><div class="cd led cab" style="--i:1"><div><h2>Apps que vêm com o Windows</h2><p>Marque os que você não usa. Só aparecem os que estão instalados neste computador.</p><div class="ctr" id="ct-apps">&nbsp;</div></div><div class="linha"><button class="bt g" id="apTodos">Marcar os de risco baixo</button><button class="bt g" id="apNenhum">Limpar</button><button class="bt p g" id="apRem" disabled>Remover selecionados</button></div></div><div class="apg" id="lsApps" style="--i:2"></div>`;
  /* extras da página Rede */
- $('#p-rede').insertAdjacentHTML('beforeend',`<div class="cd led" style="--i:5;margin-bottom:16px"><h2 style="margin:0;font-size:21px">DNS</h2><p>O DNS traduz endereços de sites em números. Trocar para Google ou Cloudflare costuma abrir sites mais rápido. “Automático” volta ao DNS do seu provedor.</p><div class="ctr" id="dnsAtual">&nbsp;</div><div class="pl" id="dnsBox"><div class="sk fino"></div><div class="sk fino"></div></div></div>`+cab('rede',6)+lista('rede',7)+`<div class="cd" style="--i:8"><div class="linha" style="flex-wrap:nowrap;align-items:center;gap:16px"><span class="ti" style="width:46px;height:46px;border-radius:13px;display:grid;place-items:center;background:#121a24;color:#64a5fb;flex:none">${ico('ip')}</span><div style="flex:1;min-width:0"><b style="font-size:16px">Resetar a rede</b><p style="margin-top:3px">Limpa as configurações de rede do Windows. Use quando a internet trava ou some. Precisa de Administrador e de reiniciar o PC depois.</p></div><button class="bt" data-c="rede_reset" data-ct="Resetar a rede?" data-cp="A internet vai cair e você precisará reiniciar o computador. Conexões Wi-Fi salvas continuam salvas. Continuar?">Resetar</button></div></div>`);
+ $('#p-rede').insertAdjacentHTML('beforeend',`<div class="cd led" style="--i:5;margin-bottom:16px"><h2 style="margin:0;font-size:21px">DNS</h2><p>O DNS traduz endereços de sites em números. Trocar para Google ou Cloudflare costuma abrir sites mais rápido. “Automático” volta ao DNS do seu provedor.</p><div class="ctr" id="dnsAtual">&nbsp;</div><div class="pl" id="dnsBox"><div class="sk fino"></div><div class="sk fino"></div></div></div>`+cab('rede',6)+lista('rede',7)+`<div class="cd" style="--i:8"><div class="linha" style="flex-wrap:nowrap;align-items:center;gap:16px"><span class="ti" style="width:46px;height:46px;border-radius:13px;display:grid;place-items:center;background:#121a24;color:#64a5fb;flex:none">${ico('ip')}</span><div style="flex:1;min-width:0"><b style="font-size:16px">Resetar a rede</b><p style="margin-top:3px">Limpa as configurações de rede do Windows. Use quando a internet trava ou some. Precisa de Administrador e de reiniciar o PC depois. Se você usa IP ou DNS fixos, anote antes: eles voltam para o automático.</p></div><button class="bt" data-c="rede_reset" data-ct="Resetar a rede?" data-cp="A internet vai cair e você precisará reiniciar o computador. Conexões Wi-Fi salvas continuam salvas, mas IP e DNS fixos voltam para o automático. Continuar?">Resetar</button></div></div>`);
 })();
 
 /* catálogo vindo do programa */
@@ -1958,9 +1980,11 @@ function pintarEnergia(){const j=LST.energia;if(!j)return;
 const DNSD=[['auto','Automático','O DNS do seu provedor (padrão).'],['google','Google','8.8.8.8 e 8.8.4.4'],['cloudflare','Cloudflare','1.1.1.1 e 1.0.0.1']];
 async function carregarDns(){try{LST.dns=await pegar('dns');pintarDns()}catch(e){$('#dnsBox').innerHTML=vazio('info','Não consegui ler o DNS','Tente de novo em alguns segundos.')}}
 function pintarDns(){const j=LST.dns;if(!j)return;
- $('#dnsAtual').textContent=j.servidores&&j.servidores.length?('EM USO: '+j.servidores.join(' · ')):(CATWIN?'EM USO: AUTOMÁTICO':'PRÉVIA — SÓ FUNCIONA NO WINDOWS');
+ $('#dnsAtual').textContent=j.servidores&&j.servidores.length?('EM USO: '+j.servidores.join(' · ')+(j.modo==='auto'?' (DO PROVEDOR)':'')):(CATWIN?'EM USO: AUTOMÁTICO':'PRÉVIA — SÓ FUNCIONA NO WINDOWS');
  const sig=JSON.stringify(j)+CATWIN;const box=$('#dnsBox');if(box.dataset.s===sig)return;box.dataset.s=sig;
- box.innerHTML=DNSD.map(d=>`<button class="pc ${j.modo===d[0]?'on':''}" data-dns="${d[0]}" ${CATWIN?'':'disabled'}><span class="pi2">${ico('dns')}</span><b>${d[1]}</b><small>${d[2]}</small>${j.modo===d[0]?'<span class="tg">EM USO</span>':''}</button>`).join('')}
+ const ops=DNSD.map(d=>d[0]==='auto'&&CATWIN&&j.dhcp===false?[d[0],d[1],'Indisponível: este PC usa IP fixo.',1]:d);
+ if(j.antes&&j.antes.length)ops.push(['antes','O de antes',j.antes.join(' e ')]);
+ box.innerHTML=ops.map(d=>`<button class="pc ${j.modo===d[0]?'on':''}" data-dns="${d[0]}" ${CATWIN&&!d[3]?'':'disabled'}><span class="pi2">${ico('dns')}</span><b>${d[1]}</b><small>${esc(d[2])}</small>${j.modo===d[0]?'<span class="tg">EM USO</span>':''}</button>`).join('')}
 
 /* inicialização */
 async function carregarInicio(){const b=$('#lsInicio');if(!LST.inicio)b.innerHTML='<div class="sk fino"></div><div class="sk fino"></div><div class="sk fino"></div>';
@@ -1972,14 +1996,14 @@ function pintarInicio(){const it=LST.inicio,b=$('#lsInicio');if(!it)return;
 
 /* debloat */
 async function carregarApps(){const b=$('#lsApps');if(!LST.apps)b.innerHTML=Array.from({length:6},()=>'<div class="sk fino"></div>').join('');
- try{LST.apps=(await pegar('apps')).apps;[...SELAPPS].forEach(n=>{if(!LST.apps.some(a=>a.nome===n))SELAPPS.delete(n)});pintarApps()}catch(e){b.innerHTML=vazio('info','Não consegui ler os apps','Tente de novo em alguns segundos.')}}
+ try{const r=await pegar('apps');LST.apps=r.apps;LST.appsErro=r.erro||'';[...SELAPPS].forEach(n=>{if(!LST.apps.some(a=>a.nome===n))SELAPPS.delete(n)});pintarApps()}catch(e){b.innerHTML=vazio('info','Não consegui ler os apps','Tente de novo em alguns segundos.')}}
 function pintarApps(){const ap=LST.apps,b=$('#lsApps');if(!ap)return;
  $('#ct-apps').textContent=ap.length?`${SELAPPS.size} DE ${ap.length} SELECIONADOS`:'';$('#apRem').disabled=!SELAPPS.size||!CATWIN;
- if(!ap.length){b.className='';b.innerHTML=vazio('check',CATWIN?'Nada para remover':'Prévia',CATWIN?'Nenhum app da lista segura está instalado. Seu Windows já está limpo.':'Esta lista só funciona no Windows.');return}
+ if(!ap.length){b.className='';const er=LST.appsErro&&!/Mostrando/.test(LST.appsErro);b.innerHTML=er?vazio('info','Não consegui ler os apps',LST.appsErro):vazio('check',CATWIN?'Nada para remover':'Prévia',CATWIN?'Nenhum app da lista segura está instalado. Seu Windows já está limpo.':'Esta lista só funciona no Windows.');return}
  b.className='apg';
  b.innerHTML=ap.map(a=>`<label class="ap ${SELAPPS.has(a.nome)?'sel':''}"><input type="checkbox" data-app="${esc(a.nome)}" ${SELAPPS.has(a.nome)?'checked':''} ${CATWIN?'':'disabled'}><span class="ck">${ico('check')}</span><div><b>${esc(a.titulo)}</b><small>${esc(a.nome)}</small></div><span class="rk ${a.risco==='medio'?'medio">MÉDIO':'baixo">BAIXO'}</span></label>`).join('');
  const av=$('#av-debloat');if(!CATWIN){av.hidden=false;av.innerHTML=ico('info')+'<span>Só funciona no Windows. Aqui você vê apenas uma prévia.</span>'}
- else if(S&&!S.admin){av.hidden=false;av.innerHTML=ico('info')+'<span>Remover apps precisa de <b>Administrador</b>. Feche e abra o Th Boost pelo atalho da área de trabalho.</span>'}else av.hidden=true}
+ else if(S&&!S.admin){av.hidden=false;av.innerHTML=ico('info')+'<span>Remover apps precisa de <b>Administrador</b>. Feche e abra o Th Boost pelo atalho da área de trabalho.</span>'}else if(LST.appsErro){av.hidden=false;av.innerHTML=ico('info')+'<span>'+esc(LST.appsErro)+'</span>'}else av.hidden=true}
 
 /* depois de uma ação, relê a lista da página aberta */
 let recTimer=null;
@@ -1999,7 +2023,7 @@ document.addEventListener('click',e=>{
  const dn=e.target.closest('[data-dns]');if(dn&&!dn.disabled){return acao('dns_trocar',{modo:dn.dataset.dns})}
  const is=e.target.closest('[data-inisw]');if(is){const i=(LST.inicio||[]).find(x=>x.id===is.dataset.inisw);if(i){i.ligado=!i.ligado;pintarInicio();acao('inicio',{id:i.id,ligar:i.ligado})}return}
  if(e.target.closest('#inRe')){LST.inicio=null;return carregarInicio()}
- if(e.target.closest('#apTodos')){(LST.apps||[]).forEach(a=>SELAPPS.add(a.nome));return pintarApps()}
+ if(e.target.closest('#apTodos')){(LST.apps||[]).filter(a=>a.risco!=='medio').forEach(a=>SELAPPS.add(a.nome));return pintarApps()}
  if(e.target.closest('#apNenhum')){SELAPPS.clear();return pintarApps()}
  if(e.target.closest('#apRem')){const n=SELAPPS.size;if(!n)return;
   return confirmar(`Remover ${n} app(s)?`,'Os apps marcados serão removidos de todos os usuários deste PC. Para ter um de volta, instale de novo pela Microsoft Store.',()=>{acao('debloat',{pacotes:[...SELAPPS]});SELAPPS.clear();pintarApps()})}
@@ -2401,10 +2425,10 @@ function pintarMem(){
   const txt=r.estado==='lendo'||r.estado==='nenhum'?'<div class="sk fino"></div>':vazio('info','Não consegui ler a memória','Este PC não respondeu à leitura dos pentes de memória. Tente de novo em instantes.');
   $('#mmHero').innerHTML=txt;$('#mmAch').innerHTML='<h3>Diagnóstico</h3>'+txt;$('#mmGuia').innerHTML='';$('#mmPentes').innerHTML='';$('#mmFaz').innerHTML='';return}
  const chip=(t,c)=>`<span class="chip on ${c||''}" style="cursor:default">${esc(t)}</span>`;
- const resumo=d.abaixo?`Está abaixo do que o kit entrega (${d.vel_kit} MHz). Ativar o perfil ${esc(d.perfil)} na BIOS libera o resto, sem custo.`:(d.canal==='unico'?'Funciona, mas com 1 pente só (canal único). Um segundo pente igual deixaria a memória bem mais rápida em jogos.':'A memória está na velocidade do kit. Não há ajuste de velocidade pendente.');
+ const resumo=d.abaixo?`Está abaixo do que o kit entrega (${d.vel_kit} MHz). Ativar o perfil ${esc(d.perfil)} na BIOS libera o resto, sem custo.`:(d.canal==='unico'?'Funciona, mas com 1 pente só (canal único). Um segundo pente igual deixaria a memória bem mais rápida em jogos.':(d.canal==='mesmo'?'Os pentes parecem estar no mesmo canal. Veja no manual da placa-mãe quais slots usar para o canal duplo (geralmente o 2º e o 4º, contando a partir do processador).':'A memória está na velocidade do kit. Não há ajuste de velocidade pendente.'));
  const pentes=d.modulos.map(m=>`<div class="mms"><div><b>${m.gb} GB</b><small>${esc(m.tipo||'')} ${m.mhz_atual||m.mhz_spd||'?'} MHz</small></div><small>${esc(m.slot||'')}</small></div>`).join('');
  $('#mmHero').innerHTML=`<div><h3 class="mmk">SUA MEMÓRIA RAM</h3><h2>${d.total_gb} GB<small>${esc(d.tipo||'')}${d.vel_atual?' · '+d.vel_atual+' MHz':''}</small></h2><p class="sub2">${resumo}</p>
-  <div class="chips" style="margin:10px 0 14px">${chip(d.canal==='duplo'?'Canal duplo':(d.canal==='unico'?'Canal único':'Canal ?'),d.canal==='unico'?'am':'')}${d.vel_kit?chip('Kit de '+d.vel_kit+' MHz'):''}${d.slots?chip(d.modulos.length+' de '+d.slots+' slots'):''}${d.placa?chip(d.placa):''}</div>
+  <div class="chips" style="margin:10px 0 14px">${chip(d.canal==='duplo'?'Canal duplo':(d.canal==='provavel'?'Canal duplo (provável)':(d.canal==='unico'?'Canal único':(d.canal==='mesmo'?'Mesmo canal':'Canal ?'))),(d.canal==='unico'||d.canal==='mesmo')?'am':'')}${d.vel_kit?chip('Kit de '+d.vel_kit+' MHz'):''}${d.slots?chip(d.modulos.length+' de '+d.slots+' slots'):''}${d.placa?chip(d.placa):''}</div>
   <div class="linha"><button class="bt p" data-act="mm_atualizar">${ico('ip')}<span>Ler de novo</span></button><button class="bt" data-act="mm_testar">Testar a memória</button><button class="bt" data-a="ram">Liberar a RAM agora</button></div></div><div class="mmp">${pentes}</div>`;
  $('#mmAch').innerHTML='<h3>Diagnóstico</h3>'+d.achados.map(a=>`<div class="ac ${a.nivel}"><span class="pt"></span><div><b>${esc(a.titulo)}</b><span>${esc(a.texto)}</span></div></div>`).join('');
  const bios=MM.pend>Date.now();
@@ -2417,7 +2441,7 @@ function pintarMem(){
   <p class="sub2" style="margin:12px 0 0">Se o PC não ligar ou der tela azul depois, entre na BIOS de novo e volte para <b>Auto</b> (ou limpe a CMOS). ${d.notebook?'Em notebook a BIOS quase nunca mostra essa opção.':''}</p>`;
  $('#mmPentes').innerHTML='<h3>Pentes de memória</h3>'+d.modulos.map(m=>`<div class="pt-l"><div><b>${m.gb} GB ${esc(m.tipo||'')} · ${esc(m.slot||'')}</b><small>${esc([m.fab,m.peca].filter(Boolean).join(' · ')||'sem detalhes do fabricante')}</small></div><time>${m.mhz_atual||m.mhz_spd||'?'}${m.mhz_spd&&m.mhz_atual&&m.mhz_spd>m.mhz_atual?' / '+m.mhz_spd:''} MHz</time></div>`).join('')+'<p class="sub2" style="margin:10px 0 0">Velocidade atual / velocidade do kit. Os MHz são os mesmos escritos na caixa da memória.</p>';
  $('#mmFaz').innerHTML=`<h3>O que o Th Boost já faz pela memória</h3>
-  <div class="xo"><div><b>Liberar a RAM</b><small>Esvazia a memória dos programas parados. Dá para fazer a qualquer hora.</small></div><button class="bt g" data-a="ram">Liberar</button></div>
+  <div class="xo"><div><b>Liberar a RAM</b><small>Só age quando a memória está apertada (menos de 25% livre): esvazia programas parados em segundo plano, nunca o jogo nem o que você está usando.</small></div><button class="bt g" data-a="ram">Liberar</button></div>
   <div class="xo"><div><b>Reduzir processos</b><small>Fecha ajudantes e junta os serviços do Windows em menos processos: menos memória ocupada à toa.</small></div><button class="bt g" data-ir="processos">Abrir</button></div>
   <div class="xo"><div><b>Otimizar antes de jogar</b><small>Libera a RAM e fecha o que pesa antes do jogo abrir.</small></div><button class="bt g" data-ir="jogos">Abrir</button></div>
   <div class="xo"><div><b>Otimização Suprema</b><small>Com 16 GB ou mais, desliga a compressão de memória do Windows (ganha processador).</small></div><button class="bt g" data-ir="extremo">Abrir</button></div>`}
@@ -2495,10 +2519,10 @@ function pintarCpu(d,busy){
  if(!c){el.hidden=true;return}
  el.hidden=false;
  if(!el.dataset.ok){el.dataset.ok='1';
-  el.innerHTML=`<div class="cpuh"><div><h3>Limite de CPU dos programas em segundo plano</h3><p class="sub2">Escolha até quanto da CPU o navegador, a nuvem, os atualizadores, os launchers e os programas comuns que ficam abertos <b>em segundo plano</b> podem usar, <b>todos juntos</b>. É um limite do próprio Windows: o número que você escolhe é o máximo, e o resto da CPU sobra para o jogo e para o que você está usando.</p></div><button class="sw" id="cpuSw" data-act="cpu_sw" aria-pressed="false" aria-label="Ligar o limite de CPU"><i></i></button></div>
+  el.innerHTML=`<div class="cpuh"><div><h3>Limite de CPU dos programas em segundo plano</h3><p class="sub2">Escolha até quanto da CPU o navegador, a nuvem, os atualizadores e os ajudantes dispensáveis que ficam abertos <b>em segundo plano</b> podem usar, <b>todos juntos</b>. É um limite do próprio Windows: o número que você escolhe é o máximo, e o resto da CPU sobra para o jogo e para o que você está usando.</p></div><button class="sw" id="cpuSw" data-act="cpu_sw" aria-pressed="false" aria-label="Ligar o limite de CPU"><i></i></button></div>
   <div class="cpur"><div class="cpuv"><b id="cpuV">40%</b><small>da CPU, no máximo</small></div><div class="cpub"><input type="range" id="cpuR" min="${c.min}" max="${c.max}" step="5" value="${c.pct}" aria-label="Limite de CPU dos programas em segundo plano"><div class="cpue"><span>${c.min}% · limite forte</span><span>${c.max}% · limite fraco</span></div></div></div>
   <p class="sub2" id="cpuInfo" style="margin:12px 0 0"></p>
-  <p class="sub2" style="margin:8px 0 0">Ficam sempre de fora: o programa que você está usando, jogos, Windows, antivírus, drivers, chat e reuniões. Se algo em segundo plano estiver baixando ou convertendo, vai demorar mais. Dá para desligar quando quiser; ao fechar o Th Boost o limite também sai.</p>`}
+  <p class="sub2" style="margin:8px 0 0">Ficam sempre de fora: o programa que você está usando, jogos, launchers de jogos (e tudo o que eles abrem), Windows, antivírus, drivers, chat e reuniões. Se algo em segundo plano estiver baixando ou convertendo, vai demorar mais. Dá para desligar quando quiser; ao fechar o Th Boost o limite também sai.</p>`}
  const r=$('#cpuR'),sw=$('#cpuSw'),alvo=(CPUS.pct!=null&&Date.now()<CPUS.ate)?CPUS.pct:c.pct;
  if(document.activeElement!==r)r.value=alvo;
  cpuFill(r);$('#cpuV').textContent=r.value+'%';
@@ -2587,7 +2611,7 @@ const JOGO_OPC=[
  ['leve','Dar prioridade ao jogo','Os outros programas ficam com prioridade menor (Modo Leve).'],
  ['fso','Desligar a otimização de tela cheia do jogo','Em alguns jogos reduz o atraso; em outros piora. Desligado por padrão.'],
  ['abrir','Abrir o jogo depois de otimizar','Vale para o botão “Otimizar e jogar”.']];
-const FPS_IDS=['modo_jogo','game_dvr','fps_dvr_politica','fps_gamebar','prioridade_jogos','mouse_acel','rede_throttle','rede_nagle','fps_energia_throttle','hags','fps_vbs'];
+const FPS_IDS=['modo_jogo','game_dvr','fps_dvr_politica','fps_gamebar','fps_janela','prioridade_jogos','mouse_acel','do_p2p','rede_throttle','rede_nagle','fps_energia_throttle','hags','fps_vbs'];
 const FROW={},JPEND={};
 let JDISM=-1,JSIG='';
 const optJ=(s,k)=>{const p=JPEND[k];return p&&Date.now()-p.t<3000?p.v:!!s.pre.opcoes[k]};

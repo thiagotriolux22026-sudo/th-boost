@@ -42,7 +42,7 @@ MAX_JOGOS_MANUAIS = 60
 MAX_JOGOS_LISTA = 300
 
 
-def _env(nome, padrao=""):
+def _env_loja(nome, padrao=""):
     return os.environ.get(nome) or padrao
 
 
@@ -155,7 +155,7 @@ _RIOT_NOMES = {"valorant": "VALORANT", "league_of_legends": "League of Legends",
 
 
 def _cliente_riot():
-    base = os.path.join(_env("ProgramData", r"C:\ProgramData"), "Riot Games", "RiotClientInstalls.json")
+    base = os.path.join(_env_loja("ProgramData", r"C:\ProgramData"), "Riot Games", "RiotClientInstalls.json")
     try:
         with open(base, encoding="utf-8") as f:
             d = json.load(f)
@@ -176,7 +176,7 @@ def _cliente_riot():
 def _jogos_riot():
     cliente = _cliente_riot()
     jogos, vistos = [], set()
-    base = os.path.join(_env("ProgramData", r"C:\ProgramData"), "Riot Games", "Metadata")
+    base = os.path.join(_env_loja("ProgramData", r"C:\ProgramData"), "Riot Games", "Metadata")
     for arq in glob.glob(os.path.join(base, "*", "*.product_settings.yaml")):
         produto, _, patch = os.path.basename(os.path.dirname(arq)).partition(".")
         if not produto or produto == "riot_client" or produto in vistos:
@@ -214,7 +214,7 @@ def _jogos_riot():
 # ---------- Roblox ----------
 
 def _jogos_roblox():
-    la = _env("LOCALAPPDATA")
+    la = _env_loja("LOCALAPPDATA")
     if not la:
         return []
     jogos = []
@@ -242,7 +242,7 @@ def _jogos_roblox():
 
 def _jogos_gta_rp():
     jogos = []
-    la = _env("LOCALAPPDATA")
+    la = _env_loja("LOCALAPPDATA")
     if la:
         exe = os.path.join(la, "FiveM", "FiveM.exe")
         if os.path.isfile(exe):
@@ -404,8 +404,8 @@ def _jogos_xbox():
 # ---------- Minecraft ----------
 
 def _jogos_minecraft():
-    la, ap = _env("LOCALAPPDATA"), _env("APPDATA")
-    pf = _env("ProgramFiles(x86)", r"C:\Program Files (x86)")
+    la, ap = _env_loja("LOCALAPPDATA"), _env_loja("APPDATA")
+    pf = _env_loja("ProgramFiles(x86)", r"C:\Program Files (x86)")
     launcher = os.path.join(pf, "Minecraft Launcher", "MinecraftLauncher.exe")
     loja_java = os.path.join(la, "Packages", "Microsoft.4297127D64EC6_8wekyb3d8bbwe") if la else ""
     jogos = []

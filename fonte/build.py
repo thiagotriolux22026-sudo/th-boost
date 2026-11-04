@@ -3,7 +3,7 @@ B = os.path.dirname(os.path.abspath(__file__))
 rd = lambda p: open(os.path.join(B, p), encoding="utf-8").read()
 
 DOC = '''"""
-Th Boost v9.0.1 - painel de otimizacao e monitoramento para Windows (preto e azul).
+Th Boost v9.1 - painel de otimizacao e monitoramento para Windows (preto e azul).
 
 Instalar:    pip install psutil
 Executar:    python th_boost.py   (abra como Administrador para overclock, plano de energia, FPS e renovar IP)
@@ -64,7 +64,8 @@ oc = rd("src/overclock.py")
 cq = rd("src/cpu_perfil.py")
 mi = rd("src/mouse_id.py")
 at = rd("src/atualiza.py")
+au = rd("src/autoteste.py")
 sv = rd("src/servidor.py")
-saida = DOC + bk.rstrip() + "\n\n" + aj.rstrip() + "\n\n\n" + xt.rstrip() + "\n\n\n" + jg.rstrip() + "\n\n\n" + jl.rstrip() + "\n\n\n" + mt.rstrip() + "\n\n\n" + pc.rstrip() + "\n\n\n" + cp.rstrip() + "\n\n\n" + fr.rstrip() + "\n\n\n" + mm.rstrip() + "\n\n\n" + oc.rstrip() + "\n\n\n" + cq.rstrip() + "\n\n\n" + mi.rstrip() + "\n\n\n" + at.rstrip() + "\n\n\n" + sv.rstrip() + '\n\n\nHTML = r"""' + html + '"""\n\n\nif __name__ == "__main__":\n    principal()\n'
+saida = DOC + bk.rstrip() + "\n\n" + aj.rstrip() + "\n\n\n" + xt.rstrip() + "\n\n\n" + jg.rstrip() + "\n\n\n" + jl.rstrip() + "\n\n\n" + mt.rstrip() + "\n\n\n" + pc.rstrip() + "\n\n\n" + cp.rstrip() + "\n\n\n" + fr.rstrip() + "\n\n\n" + mm.rstrip() + "\n\n\n" + oc.rstrip() + "\n\n\n" + cq.rstrip() + "\n\n\n" + mi.rstrip() + "\n\n\n" + at.rstrip() + "\n\n\n" + au.rstrip() + "\n\n\n" + sv.rstrip() + '\n\n\nHTML = r"""' + html + '"""\n\n\nif __name__ == "__main__":\n    principal()\n'
 open(os.path.join(B, "out/th_boost.py"), "w", encoding="utf-8").write(saida)
 print("ok", len(saida.splitlines()), "linhas")

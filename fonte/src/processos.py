@@ -573,7 +573,7 @@ class ProcessosMixin:
                 a.ligar()
                 feitos.append(a.id)
             except OSError:
-                falhas += 1
+                falhas += 1  # serviço que o Windows recusa: o ajuste volta sozinho como era (tudo ou nada)
         self.atualizar_aj()
         if feitos:
             guardados = [i for i in (CONFIG.get("proc_ids") or []) if isinstance(i, str)]

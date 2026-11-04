@@ -40,6 +40,23 @@ def velocidade_pelo_codigo(peca):
     return 0
 
 
+def canal_dos_slots(slots):
+    """v9.1: pelo nome dos encaixes (DIMM_A2, ChannelB-DIMM0, P0 CHANNEL A...) diz se os pentes estão em canais diferentes.
+    'duplo' (confirmado), 'mesmo' (2+ pentes no MESMO canal: erro comum de montagem), 'provavel' (não deu para saber), 'unico'."""
+    if len(slots) <= 1:
+        return "unico"
+    letras = []
+    for t in slots:
+        u = str(t or "").upper()
+        m = (re.search(r"CHANNEL\s*[-_]?\s*([A-H])\b", u) or re.search(r"\bCH(?:AN)?\s*[-_]?\s*([A-H])\b", u)
+             or re.search(r"DIMM\s*[-_]?\s*([A-H])\s*[-_]?\d", u) or re.search(r"(?:^|[\s_-])([A-H])[0-3](?:$|[\s_-])", u))
+        c = re.search(r"(?:CONTROLLER|\bP)\s*(\d)", u)  # controladora/processador diferente = canal diferente
+        letras.append(((c.group(1) if c else "") + m.group(1)) if m else None)
+    if any(l is None for l in letras):
+        return "duplo" if len({l for l in letras if l}) >= 2 else "provavel"
+    return "duplo" if len(set(letras)) >= 2 else "mesmo"
+
+
 def _perfil_da_placa(cpu):
     c = (cpu or "").lower()
     if "ryzen" in c or "epyc" in c or "threadripper" in c:
@@ -84,7 +101,7 @@ def analisar_memoria(d, cpu="", notebook=False):
     vel_cod = max([m["mhz_codigo"] for m in mods] or [0])
     vel_kit, fonte = (vel_spd, "spd") if vel_spd >= vel_cod else (vel_cod, "codigo")
     abaixo = bool(vel_atual and vel_kit and vel_atual < vel_kit * 0.93)
-    canal = "unico" if len(mods) == 1 else ("duplo" if len(mods) >= 2 else "?")
+    canal = canal_dos_slots([m["slot"] for m in mods])
     perfil = _perfil_da_placa(cpu)
     ach = []
     if abaixo:
@@ -95,6 +112,11 @@ def analisar_memoria(d, cpu="", notebook=False):
         if notebook:
             ach.append({"id": "notebook", "nivel": "info", "titulo": "Em notebook, a BIOS quase nunca tem essa opção",
                         "texto": "Muitos notebooks travam a velocidade da memória. Se a BIOS não mostrar XMP, não há o que fazer por software."})
+    if canal == "mesmo":
+        ach.append({"id": "canal", "nivel": "aviso", "titulo": "Os pentes parecem estar no MESMO canal",
+                    "texto": "Pelos nomes dos encaixes (" + ", ".join(m["slot"] for m in mods if m["slot"]) + "), os pentes estão no mesmo canal "
+                             "e a memória trabalha como canal único. No manual da placa-mãe veja os encaixes indicados para 2 pentes "
+                             "(quase sempre A2 e B2) e troque um de lugar com o PC desligado da tomada."})
     if canal == "unico":
         ach.append({"id": "canal", "nivel": "aviso", "titulo": "Só 1 pente de memória (canal único)",
                     "texto": "Com 2 pentes iguais (canal duplo) a memória entrega até o dobro de largura de banda. Em jogos, é um dos upgrades "
