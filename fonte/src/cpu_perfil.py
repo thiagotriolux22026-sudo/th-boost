@@ -22,7 +22,11 @@ _CFG_CPU = {
 PERFIS_CPU = {
     "desempenho": {"min": 50, "max": 100, "nucleos": 100, "turbo": 2, "epp": 30, "ventoinha": 1},
     "maximo": {"min": 100, "max": 100, "nucleos": 100, "turbo": 2, "turbo_pol": 100, "epp": 0, "ventoinha": 1},
+    # v8.8: perfis para ESFRIAR o PC ou o notebook (página Resfriamento): o turbo é a velocidade extra que mais esquenta
+    "fresco": {"max": 90, "turbo": 0, "epp": 60, "ventoinha": 1},
+    "gelado": {"min": 5, "max": 70, "turbo": 0, "epp": 80, "ventoinha": 1},
 }
+NOMES_CPU = {"padrao": "Padrão do Windows", "desempenho": "Desempenho", "maximo": "Máximo", "fresco": "Fresco", "gelado": "Gelado"}
 _TEXTOS_CPU = [
     {"id": "padrao", "titulo": "Padrão do Windows", "tag": "0%",
      "texto": "O processador se comporta do jeito que o seu plano de energia já tinha. É assim que a página abre.",
@@ -34,8 +38,56 @@ _TEXTOS_CPU = [
      "texto": "Processador sempre em velocidade alta, turbo no máximo e preferência total por desempenho. Mais calor, ventoinha mais alta e mais consumo: bom para jogar, na tomada.",
      "itens": ["Velocidade mínima: 100%", "Núcleos sempre acordados: 100%", "Turbo agressivo e política 100%", "Preferência: só desempenho", "Ventoinha ativa"]},
 ]
+_TEXTOS_FRIO = [
+    {"id": "padrao", "titulo": "Normal", "tag": "NORMAL",
+     "texto": "O processador se comporta do jeito que o seu plano de energia já tinha. Se o Th Boost esfriou o PC antes, tudo volta exatamente como estava.",
+     "itens": ["Nada é mexido", "Os valores de antes voltam inteiros"]},
+    {"id": "fresco", "titulo": "Fresco", "tag": "MAIS FRIO",
+     "texto": "O processador não passa de 90% da velocidade e o turbo (a velocidade extra, que é o que mais esquenta) fica desligado. Costuma baixar vários graus e quase não se nota no dia a dia.",
+     "itens": ["Velocidade máxima: 90%", "Turbo desligado", "Prefere gastar menos energia", "Ventoinha ativa antes de reduzir a velocidade"]},
+    {"id": "gelado", "titulo": "Gelado", "tag": "BEM FRIO",
+     "texto": "O processador não passa de 70%, sem turbo, e volta a ficar bem lento quando está parado. É o que mais esfria, mas o PC fica mais devagar em tarefas pesadas e em jogos.",
+     "itens": ["Velocidade máxima: 70%", "Velocidade mínima: 5%", "Turbo desligado", "Prefere economizar energia", "Ventoinha ativa antes de reduzir a velocidade"]},
+]
 _ROTULOS_CPU = {"min": "Velocidade mínima", "max": "Velocidade máxima", "nucleos": "Núcleos sempre acordados", "turbo": "Modo do turbo",
                 "turbo_pol": "Política do turbo", "epp": "Preferência por desempenho", "ventoinha": "Ventoinha ativa"}
+
+
+# Temperatura: o Windows só informa a "zona térmica" da placa (ACPI), que em muitos notebooks acompanha o calor do processador e em
+# alguns PCs de mesa é um número fixo. Por isso a página chama de aproximada. Precisa de Administrador. Lê em segundo plano e guarda
+# por 20 segundos, para a tela não esperar o PowerShell.
+PS_TEMP_ZONA = ("$t=@(Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction SilentlyContinue | "
+                "ForEach-Object {[math]::Round($_.CurrentTemperature/10-273.15)}); if($t.Count){($t | Measure-Object -Maximum).Maximum}")
+_TEMP_ZONA = {"v": None, "t": 0.0, "lendo": False}
+
+
+def interpretar_temp_zona(saida):
+    """O número que o PowerShell imprimiu -> graus Celsius plausíveis (10 a 120), ou None. Função pura."""
+    m = re.fullmatch(r"\s*(-?\d{1,3})(?:[.,]\d+)?\s*", saida or "")
+    if not m:
+        return None
+    v = int(m.group(1))
+    return v if 10 <= v <= 120 else None
+
+
+def _atualizar_temp_zona():
+    try:
+        cod, saida = powershell(PS_TEMP_ZONA, tempo=25)
+        _TEMP_ZONA["v"] = interpretar_temp_zona(saida) if cod == 0 else None
+    except Exception:
+        _TEMP_ZONA["v"] = None
+    _TEMP_ZONA["t"] = time.time()
+    _TEMP_ZONA["lendo"] = False
+
+
+def temperatura_zona_windows():
+    """(graus ou None, de onde veio). Nunca espera: devolve o que já foi lido e pede uma leitura nova em segundo plano."""
+    if not IS_WIN:
+        return None, ""
+    if time.time() - _TEMP_ZONA["t"] > 20 and not _TEMP_ZONA["lendo"]:
+        _TEMP_ZONA["lendo"] = True
+        threading.Thread(target=_atualizar_temp_zona, daemon=True).start()
+    return _TEMP_ZONA["v"], ("zona térmica do Windows" if _TEMP_ZONA["v"] is not None else "")
 
 
 def _hex_ac(saida):
@@ -61,8 +113,8 @@ def cpu_valores_ac(guid):
 
 
 def cpu_perfil_detectar(valores):
-    """Qual perfil os valores de agora já correspondem: 'maximo', 'desempenho' ou 'padrao'."""
-    for nome in ("maximo", "desempenho"):
+    """Qual perfil os valores de agora já correspondem: 'maximo', 'desempenho', 'gelado', 'fresco' ou 'padrao'."""
+    for nome in ("maximo", "desempenho", "gelado", "fresco"):
         comparaveis = [(k, v) for k, v in PERFIS_CPU[nome].items() if valores.get(k) is not None]  # o que o PC não tem não conta
         if len(comparaveis) >= 3 and all(valores[k] == v for k, v in comparaveis):
             return nome
@@ -106,9 +158,14 @@ class CpuPerfilMixin:
             d = {"windows": bool(IS_WIN), "admin": e_admin(), "cpu": nome_do_processador() if IS_WIN else "",
                  "fisicos": psutil.cpu_count(logical=False) or 0, "logicos": psutil.cpu_count() or 0,
                  "mhz": round(freq.current) if freq and freq.current else None, "mhz_max": round(freq.max) if freq and freq.max else None,
-                 "perfis": _TEXTOS_CPU, "rotulos": _ROTULOS_CPU, "plano": "", "valores": {}, "atual": "padrao", "aplicado": False,
+                 "perfis": _TEXTOS_CPU, "frios": _TEXTOS_FRIO, "rotulos": _ROTULOS_CPU, "temp": None, "temp_fonte": "", "uso": None, "plano": "", "valores": {}, "atual": "padrao", "aplicado": False,
                  "guardado": False}
+            try:
+                d["uso"] = round(psutil.cpu_percent(interval=None))
+            except Exception:
+                pass
             if IS_WIN:
+                d["temp"], d["temp_fonte"] = temperatura_zona_windows()
                 guid, nome = cpu_plano_ativo()
                 if guid:
                     d["plano"] = nome
@@ -121,7 +178,7 @@ class CpuPerfilMixin:
             return d
 
     def cpu_perfil_definir(self, nivel):
-        if nivel not in ("padrao", "desempenho", "maximo"):
+        if nivel not in NOMES_CPU:
             raise ValueError("perfil inválido")
         if not IS_WIN:
             return self.msg("O perfil da CPU só existe no Windows.")
@@ -166,7 +223,7 @@ class CpuPerfilMixin:
             CONFIG["cpu_perfil"] = {"nivel": nivel_alvo, "plano": guid, "antes": {k: v for k, v in antes.items() if isinstance(v, int)}}
         salvar_config()
         self._cpup["t"] = 0.0
-        nomes = {"padrao": "Padrão do Windows", "desempenho": "Desempenho", "maximo": "Máximo"}
+        nomes = NOMES_CPU
         return f"Perfil da CPU: {nomes[nivel_alvo]}." + (" Os valores de antes voltaram." if nivel_alvo == "padrao" else " Para desfazer, escolha Padrão do Windows.")
 
     @staticmethod

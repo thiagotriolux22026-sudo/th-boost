@@ -376,6 +376,56 @@ class AjusteMemoriaComprimida(Ajuste):
             _guardar_backup()
 
 
+class AjustePotencia(Ajuste):
+    """Uma configuração do plano de energia ativo (powercfg). Ler o estado é rápido: vem direto do registro do plano.
+    Padrão do Windows quando ninguém mexeu: valor 1 (ligado) tanto na tomada quanto na bateria."""
+
+    def __init__(self, id, grupo, titulo, desc, subgrupo, config, **kw):
+        super().__init__(id, grupo, titulo, desc, **kw)
+        self.subgrupo, self.config = subgrupo, config
+
+    def _plano(self):
+        g = REG.ler("HKLM", r"SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes", "ActivePowerScheme")
+        return g.lower() if isinstance(g, str) and re.fullmatch(_GUID, g) else None
+
+    def _valores(self, plano):
+        base = rf"SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\{plano}\{self.subgrupo}\{self.config}"
+        return REG.ler("HKLM", base, "ACSettingIndex"), REG.ler("HKLM", base, "DCSettingIndex")
+
+    def estado(self):
+        if REG is None:
+            return None
+        plano = self._plano()
+        if not plano:
+            return None
+        ac, dc = self._valores(plano)
+        # em PC de mesa só existe o valor da tomada; em notebook a bateria também precisa estar em 0
+        return ac == 0 and (dc == 0 or (dc is None and not tem_bateria()))
+
+    def ligar(self):
+        plano = self._plano()
+        if not plano:
+            return
+        with TRAVA_AJ:
+            if self.id not in _backup() and not self.estado():  # guarda como estava antes de mexer
+                ac, dc = self._valores(plano)
+                _backup()[self.id] = {"ac": ac if isinstance(ac, int) else 1, "dc": dc if isinstance(dc, int) else 1}
+                _guardar_backup()
+        self._definir(0, 0)
+
+    def desligar(self):
+        with TRAVA_AJ:
+            antes = _backup().pop(self.id, None)
+            _guardar_backup()
+        ok = lambda v: v if isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 10 else 1
+        self._definir(ok((antes or {}).get("ac")), ok((antes or {}).get("dc")))
+
+    def _definir(self, ac, dc):
+        executar(["powercfg", "/setacvalueindex", "SCHEME_CURRENT", self.subgrupo, self.config, str(ac)])
+        executar(["powercfg", "/setdcvalueindex", "SCHEME_CURRENT", self.subgrupo, self.config, str(dc)])
+        executar(["powercfg", "/setactive", "SCHEME_CURRENT"])
+
+
 # ---- mouse: aplica na hora, sem precisar sair do Windows ----
 
 def _aplicar_aceleracao(desligada):
@@ -385,6 +435,21 @@ def _aplicar_aceleracao(desligada):
         valores = (ctypes.c_int * 3)(*((0, 0, 0) if desligada else (6, 10, 1)))
         ctypes.windll.user32.SystemParametersInfoW.argtypes = [ctypes.c_uint, ctypes.c_uint, ctypes.c_void_p, ctypes.c_uint]
         ctypes.windll.user32.SystemParametersInfoW(0x0004, 0, ctypes.byref(valores), 3)  # SPI_SETMOUSE
+    except Exception:
+        pass
+
+
+def _aplicar_teclado(_ligado=None):
+    """Aplica na hora o tempo de espera e a velocidade de repetição das teclas, lidos do registro (sem sair do Windows)."""
+    if not IS_WIN or REG is None:
+        return
+    try:
+        atraso = max(0, min(3, int(REG.ler("HKCU", r"Control Panel\Keyboard", "KeyboardDelay") or 1)))
+        vel = max(0, min(31, int(REG.ler("HKCU", r"Control Panel\Keyboard", "KeyboardSpeed") or 31)))
+        fn = ctypes.windll.user32.SystemParametersInfoW
+        fn.argtypes = [ctypes.c_uint, ctypes.c_uint, ctypes.c_void_p, ctypes.c_uint]
+        fn(0x0017, atraso, None, 3)  # SPI_SETKEYBOARDDELAY
+        fn(0x000B, vel, None, 3)  # SPI_SETKEYBOARDSPEED
     except Exception:
         pass
 
@@ -519,7 +584,12 @@ def _montar_catalogo():
         R("teclado_rapido", "mouse", "Repetição de teclas mais rápida",
           "O teclado começa a repetir a letra segurada sem esperar.",
           [("HKCU", r"Control Panel\Keyboard", "KeyboardDelay", "sz", "0", "1")],
-          ext=True, nota="Vale ao entrar de novo no Windows."),
+          depois=_aplicar_teclado, ext=True, nota="Vale na hora; alguns programas só notam ao abrir de novo."),
+        AjustePotencia("mouse_usb", "mouse", "Suspensão seletiva de USB desligada",
+                       "O Windows desliga portas USB paradas para economizar energia. Isso pode fazer o mouse (principalmente o sem fio) "
+                       "demorar para acordar e perder o primeiro movimento. Desligar a suspensão deixa o mouse sempre pronto.",
+                       "2a737441-1930-4402-8d77-b2bebba308a3", "48e6b7a6-50f5-4782-a5d4-53bb8f07e226",
+                       nota="Em notebook gasta um pouco mais de bateria."),
     ]
     # ----- Serviços -----
     S = AjusteServico

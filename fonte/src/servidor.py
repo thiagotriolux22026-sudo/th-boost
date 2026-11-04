@@ -58,6 +58,11 @@ def carregar_config():
         CONFIG["cpu_perfil"] = {"nivel": cpp["nivel"], "plano": cpp["plano"].lower(),
                                 "antes": {k: v for k, v in cpp["antes"].items()
                                           if k in _CFG_CPU and isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 100}}
+    mm_ = dados.get("mouse_manual")
+    if isinstance(mm_, dict):
+        v = manual_mouse_valido(mm_.get("marca") or "", mm_.get("modelo") or "")
+        if v and (v["marca"] or v["modelo"]):
+            CONFIG["mouse_manual"] = v
     pb = dados.get("proc_base")
     if isinstance(pb, dict) and isinstance(pb.get("n"), int) and not isinstance(pb.get("n"), bool) and 0 < pb["n"] < 100000:
         CONFIG["proc_base"] = {"n": pb["n"], "t": float(pb.get("t") or 0), "boot": float(pb.get("boot") or 0)}
@@ -234,7 +239,7 @@ def _rodar_ps(roteiro, prefixo, extra_env, oculto=True):
         return None
 
 
-VERSAO = "v8.6"
+VERSAO = "v8.9"
 PORTA = 0
 TOKEN = secrets.token_urlsafe(24)
 TRAVA = threading.Lock()
@@ -248,7 +253,7 @@ def _contar_processos():
 
 
 class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, FerramentasMixin, MemoriaMixin, CpuMixin,
-             OverclockMixin, CpuPerfilMixin):
+             OverclockMixin, CpuPerfilMixin, MouseIdMixin):
     """Guarda tudo o que a interface mostra e executa as ações pedidas por ela."""
 
     def __init__(self):
@@ -267,6 +272,7 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
         self.memoria_iniciar_estado()
         self.cpu_iniciar_estado()
         self.cpu_perfil_iniciar_estado()
+        self.mouse_iniciar_estado()
         self.jogos = []
         self.procurando = False
         self.capas = {}
@@ -441,6 +447,8 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
             return self.memoria_lista()
         if nome == "cpu_perfil":
             return self.cpu_perfil_lista()
+        if nome == "mouse_info":
+            return self.mouse_lista()
         raise ValueError("lista desconhecida")
 
     def catalogo(self):
@@ -731,6 +739,24 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
             self.oc_definir(0)
         elif nome == "cpu_perfil":
             self.cpu_perfil_definir(dados.get("perfil"))
+        elif nome == "mouse_ler":
+            self.mouse_ler(True)
+        elif nome == "mouse_manual":
+            self.mouse_definir_manual(dados.get("marca"), dados.get("modelo"))
+        elif nome == "mouse_foto_remover":
+            self.mouse_foto_remover()
+        elif nome == "mouse_buscar_foto":
+            self.mouse_buscar_foto()
+        elif nome == "mouse_perfil":
+            ligar = dados.get("ligar")
+            if not isinstance(ligar, bool):
+                raise ValueError("pedido inválido")
+            self.mouse_perfil(ligar)
+        elif nome == "teclado_perfil":
+            ligar = dados.get("ligar")
+            if not isinstance(ligar, bool):
+                raise ValueError("pedido inválido")
+            self.teclado_perfil(ligar)
         elif nome in ("aj", "aj_preset", "energia", "dns_trocar", "rede_reset", "inicio", "debloat", "mouse_vel"):
             self.acao_ajuste(nome, dados)
         elif nome == "segundo_plano":
@@ -1018,6 +1044,11 @@ class Manipulador(BaseHTTPRequestHandler):
                 return self._responder(200, NUCLEO.lista(consulta.get("nome", [""])[0]))
             except ValueError:
                 return self._responder(404, {"erro": "lista desconhecida"})
+        if url.path == "/api/mouse_foto":  # a foto que a pessoa guardou para o mouse mostrado agora
+            f = NUCLEO.mouse_foto_atual()
+            if not f:
+                return self._responder(404, b"", "image/png")
+            return self._responder(200, f[0], f[1], {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
         m = re.fullmatch(r"/capa/(\d+)", url.path)
         if m:
             caminho = NUCLEO.capa(int(m.group(1)))
@@ -1058,6 +1089,15 @@ class Manipulador(BaseHTTPRequestHandler):
         origem = self.headers.get("Origin")
         if origem and origem not in (f"http://127.0.0.1:{PORTA}", f"http://localhost:{PORTA}"):
             return self._responder(403, {"erro": "origem"})
+        if url.path == "/api/mouse_foto" and self._token_ok(consulta):  # envio da foto (imagem pura, até 300 KB)
+            try:
+                n = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                n = -1
+            if not 0 < n <= FOTO_MAX:
+                return self._responder(413, {"erro": "A foto é grande demais (máximo 300 KB) ou veio vazia."})
+            erro = NUCLEO.mouse_foto_guardar(self.rfile.read(n))
+            return self._responder(400 if erro else 200, {"erro": erro} if erro else {"ok": True})
         if not self._token_ok(consulta) or url.path != "/api/acao":
             return self._responder(403, {"erro": "token"})
         if "application/json" not in self.headers.get("Content-Type", ""):
