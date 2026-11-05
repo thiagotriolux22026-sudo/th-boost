@@ -43,7 +43,7 @@ def oklch(r, g, b):
 def css_giro(r, g, b, a=None):
     L, C, H = oklch(r, g, b)
     alfa = '' if a is None else f' / {a}'
-    return f'oklch({L:.4f} {C:.4f} calc({H:.2f}deg + var(--tr)){alfa})'
+    return f'oklch({L:.4f} calc({C:.4f} * var(--tc)) calc({H:.2f}deg + var(--tr)){alfa})'
 
 
 def _troca_css(txt):

@@ -20,12 +20,48 @@ def tema_tr():
     return v or 0
 
 
+def _rgb_linear(L, A, B):
+    l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3
+    m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3
+    s = (L - 0.0894841775 * A - 1.2914855480 * B) ** 3
+    return (4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+            -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+            -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s)
+
+
+def _croma_max(L, h):
+    """A cor mais forte que a tela mostra neste brilho e neste tom (OKLCH)."""
+    lo, hi = 0.0, 0.4
+    for _ in range(22):
+        c = (lo + hi) / 2
+        if all(-1e-6 <= x <= 1 + 1e-6 for x in _rgb_linear(L, c * math.cos(h), c * math.sin(h))):
+            lo = c
+        else:
+            hi = c
+    return lo
+
+
+TEMA_L0, TEMA_H0 = 0.638, math.radians(256.9)  # o azul do painel (#3389fa)
+
+
+def tema_tc(tr):
+    """v9.6: quanto as cores ficam mais fortes no tom escolhido. O azul do painel já está no máximo que a tela mostra;
+    vermelho, rosa e roxo aceitam bem mais. Sem isso, o vermelho ficava "clarinho". 1 = igual ao azul. Função pura."""
+    tr = tema_valida(tr) or 0
+    if not tr:
+        return 1.0
+    r = _croma_max(TEMA_L0, TEMA_H0 + math.radians(tr)) / _croma_max(TEMA_L0, TEMA_H0)
+    return round(max(1.0, min(1.4, r)), 3)
+
+
 def html_com_tema(html):
     """A página já chega com a cor escolhida (sem piscar azul ao abrir)."""
     tr = tema_tr()
     if not tr:
         return html
-    return html.replace('<html lang="pt-BR">', f'<html lang="pt-BR" style="--tr:{tr}deg">', 1)
+    tc = tema_tc(tr)
+    extra = f";--tc:{tc:g}" if tc != 1 else ""
+    return html.replace('<html lang="pt-BR">', f'<html lang="pt-BR" style="--tr:{tr}deg{extra}">', 1)
 
 
 def _oklab(r, g, b):
@@ -60,5 +96,5 @@ def tom_hex(cor, tr):
         return (cor or "").lower()
     r, g, b = (int(cor[i:i + 2], 16) / 255 for i in (1, 3, 5))
     L, A, B = _oklab(r, g, b)
-    c, h = math.hypot(A, B), math.atan2(B, A) + math.radians(tr)
+    c, h = math.hypot(A, B) * tema_tc(tr), math.atan2(B, A) + math.radians(tr)
     return "#" + "".join(f"{round(x * 255):02x}" for x in _srgb(L, c * math.cos(h), c * math.sin(h)))

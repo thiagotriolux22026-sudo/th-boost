@@ -1,12 +1,13 @@
 {
- "versao": "v9.5",
- "zip": "https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/atualizacao/Th-Boost-v9.5-atualizacao.zip",
- "sha256": "f2a838c625cca0fdf549226ef65221876f3093acbe0d1f4d936ccc7b22debc66",
- "tamanho": 379494,
+ "versao": "v9.6",
+ "zip": "https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/atualizacao/Th-Boost-v9.6-atualizacao.zip",
+ "sha256": "966eaa336bac916fc2af8ce925538fa41679bc376862a13455e60158f1a026d2",
+ "tamanho": 390024,
  "data": "2026-11-05",
  "novidades": [
-  "Mostra quem segura o seu FPS: o processador (CPU) ou a placa de vídeo (GPU), no FPS na tela e no Monitor",
-  "Gráfico leve com o perfil Processador fraco: alivia o processador e deixa a placa trabalhar mais",
-  "Explica o que fazer em cada caso (por exemplo, quando o overclock da placa não muda o FPS)"
+  "Tela da otimização com a % subindo e, no fim, “Otimizado com sucesso” com o resumo",
+  "Página do mouse nova: o mouse grande no meio, cartões dos lados e um menu próprio (Desempenho, Testes, Foto do mouse e Teclado)",
+  "Sua foto do mouse sem o fundo: o Th Boost recorta sozinho e mostra o seu mouse de verdade",
+  "Cores mais vivas: vermelho, rosa e roxo agora ficam fortes em todo o painel"
  ]
 }

@@ -1,14 +1,22 @@
 # Th Boost
 
-Painel de otimização e monitoramento para Windows (preto e azul, ou a cor que você escolher). Versão atual: **v9.5**.
+Painel de otimização e monitoramento para Windows (preto e azul, ou a cor que você escolher). Versão atual: **v9.6**.
 
 ## Como baixar (em qualquer computador, sem login)
 
 1. Clique neste link para baixar o ZIP pronto:
-   **[⬇ Baixar o Th Boost v9.5](https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.5.zip)**
-   (endereço: https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.5.zip)
-2. Clique com o botão direito no arquivo baixado e escolha **Extrair para "Th-Boost-v9.5\"**.
+   **[⬇ Baixar o Th Boost v9.6](https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.6.zip)**
+   (endereço: https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.6.zip)
+2. Clique com o botão direito no arquivo baixado e escolha **Extrair para "Th-Boost-v9.6\"**.
 3. Abra a pasta e leia o **LEIAME.txt** (ele explica tudo com calma).
+
+## Novidades da v9.6
+
+- **Tela da otimização:** ao otimizar (Otimizar tudo, Extrema/Suprema ou "Otimizar e jogar") abre um círculo que vai enchendo com a porcentagem e a lista do que está sendo feito (✓ feito, girando = fazendo agora, vazio = falta). No fim aparece **"OTIMIZADO COM SUCESSO"** com o resumo e o botão **Concluir**. "Esconder esta janela" deixa rodando por trás.
+- **Página do mouse nova:** o mouse grande no meio, com a luz da cor da marca atrás, e os cartões dos dois lados. Menu próprio na esquerda: **Desempenho**, **Testes**, **Foto do mouse** e **Teclado**, com o botão **Escolher o mouse**.
+- **Sua foto do mouse, sem o fundo:** em "Foto do mouse" › "Usar minha foto", o Th Boost tira o fundo sozinho e mostra o seu mouse de verdade. Para sair bem: mouse em cima de uma folha branca ou mesa lisa, foto de cima, com luz boa e sem sombra forte.
+- **Cores mais vivas:** na Cor do painel, o Vermelho, o Rosa e o Roxo ficam fortes em tudo (antes ficavam "clarinhos").
+- **Desenhos dos mouses mais realistas:** brilho, volume e sombra; o nome da marca aparece só no texto embaixo do desenho.
 
 ## Novidades da v9.5
 

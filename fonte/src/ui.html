@@ -10,11 +10,15 @@
 /* v9.2: cor do painel. As cores azuis do CSS giram com a variável --tr (graus, no OKLCH); tom() faz o mesmo nas cores
    usadas em gráficos e partículas (o canvas não entende variáveis do CSS). */
 var TEMA_TR=0;try{TEMA_TR=parseInt(document.documentElement.style.getPropertyValue('--tr'))||0}catch(e){}
+/* v9.6: no tom escolhido as cores ficam tão fortes quanto a tela deixa (o vermelho não fica mais "clarinho") */
+function temaTc(tr){tr=+tr||0;if(!tr)return 1;var mx=function(L,h){var lo=0,hi=.4;for(var i=0;i<22;i++){var c=(lo+hi)/2,a=c*Math.cos(h),b=c*Math.sin(h),l=Math.pow(L+.3963377774*a+.2158037573*b,3),m=Math.pow(L-.1055613458*a-.0638541728*b,3),s=Math.pow(L-.0894841775*a-1.291485548*b,3),R=4.0767416621*l-3.3077115913*m+.2309699292*s,G=-1.2684380046*l+2.6097574011*m-.3413193965*s,B=-.0041960863*l-.7034186147*m+1.707614701*s;if(R>=-1e-6&&R<=1+1e-6&&G>=-1e-6&&G<=1+1e-6&&B>=-1e-6&&B<=1+1e-6)lo=c;else hi=c}return lo};
+ var h0=256.9*Math.PI/180,r=mx(.638,h0+tr*Math.PI/180)/mx(.638,h0);return Math.round(Math.max(1,Math.min(1.4,r))*1000)/1000}
+var TEMA_TC=temaTc(TEMA_TR);
 function tom(h){if(!TEMA_TR||typeof h!=='string'||!/^#[0-9a-f]{6}$/i.test(h))return h;
  var f=function(c){c/=255;return c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4)},r=f(parseInt(h.slice(1,3),16)),g=f(parseInt(h.slice(3,5),16)),b=f(parseInt(h.slice(5,7),16));
  var l=Math.cbrt(0.4122214708*r+0.5363325363*g+0.0514459929*b),m=Math.cbrt(0.2119034982*r+0.6806995451*g+0.1073969566*b),s=Math.cbrt(0.0883024619*r+0.2817188376*g+0.6299787005*b);
  var L=0.2104542553*l+0.7936177850*m-0.0040720468*s,A=1.9779984951*l-2.4285922050*m+0.4505937099*s,B=0.0259040371*l+0.7827717662*m-0.8086757660*s;
- var C=Math.hypot(A,B),H=Math.atan2(B,A)+TEMA_TR*Math.PI/180,a=C*Math.cos(H),bb=C*Math.sin(H);
+ var C=Math.hypot(A,B)*TEMA_TC,H=Math.atan2(B,A)+TEMA_TR*Math.PI/180,a=C*Math.cos(H),bb=C*Math.sin(H);
  var l3=Math.pow(L+0.3963377774*a+0.2158037573*bb,3),m3=Math.pow(L-0.1055613458*a-0.0638541728*bb,3),s3=Math.pow(L-0.0894841775*a-1.2914855480*bb,3);
  var g2=function(c){c=Math.min(1,Math.max(0,c));c=c<=0.0031308?c*12.92:1.055*Math.pow(c,1/2.4)-0.055;return ('0'+Math.round(c*255).toString(16)).slice(-2)};
  return '#'+g2(4.0767416621*l3-3.3077115913*m3+0.2309699292*s3)+g2(-1.2684380046*l3+2.6097574011*m3-0.3413193965*s3)+g2(-0.0041960863*l3-0.7034186147*m3+1.7076147010*s3)}
@@ -23,7 +27,7 @@ function tom(h){if(!TEMA_TR||typeof h!=='string'||!/^#[0-9a-f]{6}$/i.test(h))ret
 </script>
 <style>
 @property --led{syntax:'<angle>';initial-value:0deg;inherits:false}
-:root{--tr:0deg;--bg:#06090b;--p:#0d1115;--p2:#12161c;--l:#1f252d;--l2:#2a323c;--t:#f4f7fa;--m:#8b97a5;--r:#3389fa;--r2:#125ec1;--r3:#5da2fb;--g:#22c55e;--b:#3b8cf6;--a:#f59e0b;--v:#5cb3f6;--ease:cubic-bezier(.2,.8,.2,1)}
+:root{--tr:0deg;--tc:1;--bg:#06090b;--p:#0d1115;--p2:#12161c;--l:#1f252d;--l2:#2a323c;--t:#f4f7fa;--m:#8b97a5;--r:#3389fa;--r2:#125ec1;--r3:#5da2fb;--g:#22c55e;--b:#3b8cf6;--a:#f59e0b;--v:#5cb3f6;--ease:cubic-bezier(.2,.8,.2,1)}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--t);font-family:"Segoe UI",system-ui,-apple-system,Roboto,Inter,sans-serif;font-size:14px;overflow:hidden;user-select:none;-webkit-user-select:none}
@@ -311,6 +315,45 @@ input[type=range]:disabled{opacity:.4}
 #cf.on{display:grid}
 #cf .cx{width:min(440px,92vw);padding:26px;border-radius:20px;background:linear-gradient(180deg,#171c22,#0d1014);border:1px solid #142b4a;box-shadow:0 30px 70px -20px #000000;animation:pop .35s var(--ease) both}
 #cf h3{margin:0 0 8px;font-size:19px;color:#ffffff;letter-spacing:0;text-transform:none}#cf p{margin:0 0 22px;color:#b8c2cf;line-height:1.5}
+/* v9.6: janela da otimização (a % subindo e, no fim, "otimizado com sucesso") */
+#otm{position:fixed;inset:0;z-index:55;display:none;place-items:center;background:rgba(3,5,8,.78);backdrop-filter:blur(5px)}
+#otm.on{display:grid}
+#otm .ox{position:relative;width:min(460px,92vw);max-height:94vh;overflow:auto;padding:26px 26px 22px;border-radius:22px;background:linear-gradient(180deg,#141920,#0a0d11);border:1px solid #16345c;box-shadow:0 34px 80px -24px #000000,0 0 70px -34px rgba(51,137,250,.7);animation:pop .35s var(--ease) both;text-align:center}
+#otm h3{margin:0 0 18px;font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:#cfd7e1}
+.oan{position:relative;width:196px;height:196px;margin:0 auto}
+.oan svg{width:100%;height:100%;display:block;overflow:visible}
+.oan .trilho{fill:none;stroke:#1a2029;stroke-width:5}
+.oan .arco{fill:none;stroke:url(#otmAr);stroke-width:5;stroke-linecap:round;filter:drop-shadow(0 0 6px rgba(51,137,250,.75))}
+.oan .lq{transition:transform .9s var(--ease)}
+.oan .on1{fill:url(#otmGl);animation:onda 3.2s linear infinite}
+.oan .on2{fill:#5da2fb;opacity:.32;animation:onda 5.4s linear infinite}
+@keyframes onda{from{transform:translateX(0)}to{transform:translateX(-200px)}}
+.oan .pct{position:absolute;inset:0;display:grid;place-items:center;font-size:46px;font-weight:800;color:#ffffff;font-variant-numeric:tabular-nums;letter-spacing:-.01em;text-shadow:0 2px 14px rgba(0,0,0,.7)}
+#otmPasso{margin:16px 0 0;color:#b8c2cf;min-height:20px;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.olist{position:relative;display:grid;gap:4px;margin-top:14px;max-height:206px;overflow:auto;text-align:left;padding-right:4px}
+.oi{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:10px;font-size:13.5px;color:#7d8896;transition:background .3s,color .3s}
+.oi i{flex:none;width:18px;height:18px;border-radius:50%;border:2px solid #2a323c;display:grid;place-items:center;box-sizing:border-box}
+.oi i svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round}
+.oi.ok{color:#d6dde5}.oi.ok i{background:var(--g);border-color:var(--g);color:#06220f}
+.oi.rodando{color:#ffffff;background:#0f1824;font-weight:700}.oi.rodando i{border-color:var(--r);border-top-color:transparent;animation:gira .8s linear infinite}
+.oi.erro{color:#fca5a5}.oi.erro i{background:#ef4444;border-color:#ef4444;color:#ffffff}
+.oi.pulado i{border-style:dashed}
+.oi span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#otm .olinha{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+.ofim{display:none}#otm.fim .orun{display:none}#otm.fim .ofim{display:block}
+.ook{width:94px;height:94px;margin:8px auto 18px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 50% 38%,#22c55e,#0f6b35);box-shadow:0 0 0 9px rgba(34,197,94,.12),0 0 56px -6px rgba(34,197,94,.75);animation:pop .5s var(--ease) both}
+.ook svg{width:50px;height:50px;fill:none;stroke:#ffffff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.ook .v{stroke-dasharray:30;stroke-dashoffset:30;animation:risca .6s .3s var(--ease) forwards}.ook .ex{display:none}
+@keyframes risca{to{stroke-dashoffset:0}}
+#otm.parou .ook{background:radial-gradient(circle at 50% 38%,#f59e0b,#8a5a06);box-shadow:0 0 0 9px rgba(245,158,11,.12),0 0 56px -6px rgba(245,158,11,.6)}
+#otm.parou .ook .v{display:none}#otm.parou .ook .ex{display:inline}
+#otmFT{margin:0 0 10px;font-size:22px;font-weight:800;letter-spacing:.07em;color:#ffffff}
+#otmFP{margin:0 auto 18px;max-width:370px;color:#b8c2cf;line-height:1.55;font-size:14px}
+.ochips{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px}
+.ochip{padding:11px 8px;border-radius:13px;background:#0e1218;border:1px solid #1b2028}
+.ochip b{display:block;font-size:19px;color:#ffffff;font-variant-numeric:tabular-nums}.ochip span{font-size:11.5px;color:#8b97a5}
+html.leve .oan .on1,html.leve .oan .on2,html.leve .oan .lq{animation:none;transition:none}html.leve .ook .v{animation:none;stroke-dashoffset:0}
+@media (prefers-reduced-motion:reduce){.oan .on1,.oan .on2{animation:none}.ook .v{animation:none;stroke-dashoffset:0}}
 
 /* abertura */
 #boot{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:radial-gradient(600px 400px at 50% 50%,#07172a,#05080a);transition:opacity .7s ease,transform .7s var(--ease),filter .7s}
@@ -871,15 +914,52 @@ select.inp option{background:#0b0e12;color:var(--t)}
 .mm-t-res b{font-size:18px;font-variant-numeric:tabular-nums}
 .mm-t-res .ruim b{color:#fb6473}
 .mm-t-nota{margin:10px 0 0;font-size:12.5px;line-height:1.5;color:#fcd38b}
-.pg.ent .mm-grade{animation:none}
+.pg.ent .mm-grade,.pg.ent .mm-palco,.pg.ent .mm-wrap{animation:none}
+.pg.ent .mm-menu{animation:sobe .5s var(--ease) both;animation-delay:100ms}
 .pg.ent .mm-row,.pg.ent .mm-card,.pg.ent .mm-img,.pg.ent .mm-barra{animation:sobe .5s var(--ease) both;animation-delay:calc(var(--i,0)*70ms + 100ms + var(--k,0)*80ms)}
-.mm-dir{position:sticky;top:4px;display:grid;gap:12px;min-width:0}
-.mm-dir .mm-img{position:static;min-height:0;padding:18px 18px 14px}.mm-dir .mm-fig{width:min(168px,54%)}.mm-dir .mm-fig.foto{width:min(220px,70%)}
+/* v9.6: o mouse grande no meio, com a luz da marca atrás, e os ajustes em cartões dos dois lados */
+.mm-palco{display:grid;grid-template-columns:minmax(0,1fr) minmax(310px,1.18fr) minmax(0,1fr);grid-template-areas:"e c d";gap:16px;align-items:center;margin-bottom:22px}
+.mm-le{grid-area:e}.mm-ld{grid-area:d}.mm-dir{grid-area:c;display:grid;min-width:0}
+.mm-lado{display:grid;gap:14px;min-width:0;align-content:center}
+.mm-lado .mm-row,.mm-lado .mm-barra{grid-template-columns:auto minmax(0,1fr) auto;row-gap:12px;padding:16px 16px 17px;border-radius:18px;align-items:start}
+.mm-lado .mm-ic{grid-row:1;grid-column:1}
+.mm-lado .mm-row>.sw,.mm-lado .mm-row>.bt,.mm-lado .mm-barra>.bt{grid-row:1;grid-column:3;align-self:center}
+.mm-lado .mm-tx{grid-row:2;grid-column:1 / -1}
+.mm-lado .mm-sl{grid-row:3;grid-column:1 / -1}
+.mm-lado .mm-row .av{grid-row:4;grid-column:1 / -1}
+.mm-dir .mm-img{position:relative;min-height:540px;padding:30px 18px 18px;border-radius:24px;background:radial-gradient(420px 360px at 50% 36%,rgba(var(--mcr,51,137,250),.16),transparent 70%),linear-gradient(180deg,#07090c,#000000)}
+.mm-dir .mm-fig{position:relative;isolation:isolate;width:min(220px,62%);filter:none}
+.mm-dir .mm-fig.foto{width:min(290px,84%)}
+.mm-dir .mm-fig svg{filter:drop-shadow(0 22px 24px rgba(0,0,0,.65))}
+.mm-dir .mm-fig::before{content:"";position:absolute;left:50%;top:50%;width:150%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(var(--mcr,51,137,250),.5),rgba(var(--mcr,51,137,250),.16) 55%,transparent);z-index:-1;pointer-events:none}
+.mm-dir .mm-fig::after{content:"";position:absolute;left:50%;top:50%;width:122%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;border:1px solid rgba(var(--mcr,51,137,250),.3);box-shadow:0 0 30px -6px rgba(var(--mcr,51,137,250),.5),inset 0 0 30px -10px rgba(var(--mcr,51,137,250),.45);z-index:-1;pointer-events:none}
+.mm-dir .mm-fig.foto::after{width:104%}
+.mm-wrap{display:grid;grid-template-columns:196px minmax(0,1fr);gap:16px;align-items:start;margin-bottom:22px}
+.mm-wrap .mm-palco{margin-bottom:0}
+.mm-menu{position:sticky;top:4px;display:grid;gap:4px;padding:14px 10px;border-radius:20px;background:linear-gradient(180deg,#11151b,#0b0e12);border:1px solid #1d232b}
+.mm-menu small{padding:8px 10px 4px;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#64a5fb}
+.mm-menu small~small{margin-top:8px;border-top:1px solid #1b2028;padding-top:14px}
+.mm-menu button{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 12px;border-radius:12px;border:1px solid transparent;background:transparent;color:#a9b3c0;font-weight:700;font-size:13.5px;text-align:left;transition:background .2s,color .2s,border-color .2s,transform .2s var(--ease)}
+.mm-menu button .ico{flex:none;width:17px;height:17px}
+.mm-menu button:hover{background:#151b23;color:#ffffff}
+.mm-menu button[aria-pressed="true"]{background:linear-gradient(135deg,#4091fa,#125ec1 70%,#0c448e);border-color:#64a5fb;color:#ffffff;box-shadow:0 8px 20px -10px rgba(51,137,250,.85)}
+.mm-menu button:focus-visible{outline:2px solid #8fbefc;outline-offset:2px}
+.mm-menu .mm-menu-esc{margin-top:12px;justify-content:center;border-color:#2a323c;background:linear-gradient(180deg,#1a1f27,#10141a);color:#e8edf3}
+.mm-palco:not([data-t="aj"]) [data-mmg="aj"],.mm-palco:not([data-t="te"]) [data-mmg="te"],.mm-palco:not([data-t="fo"]) [data-mmg="fo"],.mm-palco:not([data-t="tc"]) [data-mmg="tc"]{display:none}
+.mm-palco .mm-troca{animation:sobe .45s var(--ease) both;animation-delay:calc(var(--k,0)*70ms)}
+.mm-lado .mm-card{padding:16px 16px 17px;border-radius:18px}
+.mm-lado .mm-t-cab{grid-template-columns:1fr}.mm-lado .mm-t-cab .bt{justify-self:start}
+.mm-lado .mm-t-res{grid-template-columns:repeat(2,minmax(0,1fr))}
+.mm-foto-c b{display:block;margin-top:12px;font-size:15.5px}.mm-foto-c small{display:block;margin-top:4px;color:var(--m);font-size:12.5px;line-height:1.45}
+.mm-foto-c .mm-img-bt{justify-content:flex-start}
+.mm-passos{margin:12px 0 0;padding-left:20px;display:grid;gap:5px;color:#c9d0d9;font-size:12.5px;line-height:1.45}
+.mm-passos li::marker{color:#64a5fb;font-weight:800}
 .mm-barra{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:14px;padding:14px 16px;border-radius:16px;background:linear-gradient(180deg,#11151b,#0d1115);border:1px solid #1d232b;transition:border-color .3s,background .3s}
 .mm-barra.on{border-color:#21364a;background:linear-gradient(180deg,#122126,#0d1317)}
-.mm-sec{margin:6px 2px 0;font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#64a5fb}
+.mm-sec{margin:2px 2px 0;font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#64a5fb}
 .mm-fig.foto{aspect-ratio:1/1;width:min(260px,82%)}
 .mm-foto{width:100%;height:100%;object-fit:contain;display:block;border-radius:18px;background:#fff;padding:6px;box-sizing:border-box}
+.mm-foto.sem-fundo{background:none;padding:0;border-radius:0;filter:drop-shadow(0 18px 18px rgba(0,0,0,.55))}
 .mm-dados{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:5px;text-align:left;font-size:12.5px;color:#c9d0d9;max-width:300px}
 .mm-dados li::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:rgb(var(--mcr,51,137,250));margin-right:8px;vertical-align:middle}
 .mm-dados-n{margin:6px 0 0;font-size:11px;color:#5a646f;max-width:300px}
@@ -921,7 +1001,9 @@ select.inp option{background:#0b0e12;color:var(--t)}
 .rf-barra .bt.p{background:linear-gradient(180deg,#38bdf8,#0ea5e9);border-color:#38bdf8;color:#04202c}
 
 
-@media (max-width:980px){.mm-grade{grid-template-columns:1fr}.mm-dir{position:static;order:-1}.mm-dir .mm-img{min-height:340px}.mm-fig{width:min(170px,50%)}}
+@media (max-width:1180px){.mm-palco{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"c c" "e d";align-items:start}.mm-dir .mm-img{min-height:420px}}
+@media (max-width:1300px){.mm-wrap{grid-template-columns:1fr}.mm-menu{position:static;display:flex;flex-wrap:wrap;align-items:center;padding:8px}.mm-menu small{display:none}.mm-menu .mm-menu-esc{margin:0 0 0 auto}}
+@media (max-width:620px){.mm-palco{grid-template-columns:1fr;grid-template-areas:"c" "e" "d"}.mm-dir .mm-img{min-height:360px}.mm-dir .mm-fig{width:min(180px,56%)}}
 @media (max-width:620px){.mm-esc-f{grid-template-columns:1fr}.mm-t-res{grid-template-columns:repeat(2,minmax(0,1fr))}.mm-t-cab{grid-template-columns:1fr}.mm-row{grid-template-columns:auto minmax(0,1fr)}.mm-row .sw,.mm-row>.bt{grid-column:2;justify-self:start}}
 @media (prefers-reduced-motion:reduce){.mm-fig svg,.mm-fig.ent svg{animation:none!important}.pg.ent .mm-row,.pg.ent .mm-card,.pg.ent .mm-img,.pg.ent .mm-barra{animation:none!important}.mm-rgb{animation:none!important}.mm-fig.ent .mm-foto{animation:none!important}.mm-t-bar i{transition:none!important}}
 html.leve .mm-fig svg,html.leve .mm-fig.ent svg{animation:none!important}
@@ -996,9 +1078,9 @@ html.leve .atu-not,html.leve .atu-card{animation:none}html.leve .atu-not{-webkit
 .tmg{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:12px}
 .tmb{display:grid;justify-items:center;gap:10px;padding:16px 10px 14px;border-radius:16px;border:1px solid var(--l);background:var(--p2);color:var(--t);cursor:pointer;font:inherit;font-weight:600;transition:border-color .2s,transform .2s}
 .tmb:hover{border-color:var(--l2);transform:translateY(-2px)}
-.tmb i{width:54px;height:54px;border-radius:50%;background:radial-gradient(circle at 35% 30%,oklch(0.8 0.12 calc(256.9deg + var(--tt))),oklch(0.638 0.187 calc(256.9deg + var(--tt))) 45%,oklch(0.52 0.27 calc(274.3deg + var(--tt))));box-shadow:0 0 0 3px var(--p2),0 0 0 4px var(--l2),0 6px 22px oklch(0.638 0.187 calc(256.9deg + var(--tt)) / .45)}
+.tmb i{width:54px;height:54px;border-radius:50%;background:radial-gradient(circle at 35% 30%,oklch(0.8 calc(0.12 * var(--tk,1)) calc(256.9deg + var(--tt))),oklch(0.638 calc(0.187 * var(--tk,1)) calc(256.9deg + var(--tt))) 45%,oklch(0.52 calc(0.27 * var(--tk,1)) calc(274.3deg + var(--tt))));box-shadow:0 0 0 3px var(--p2),0 0 0 4px var(--l2),0 6px 22px oklch(0.638 calc(0.187 * var(--tk,1)) calc(256.9deg + var(--tt)) / .45)}
 .tmb.on{border-color:var(--r);box-shadow:inset 0 0 0 1px var(--r)}
-.tmb.on i{box-shadow:0 0 0 3px var(--p2),0 0 0 5px var(--r),0 6px 22px oklch(0.638 0.187 calc(256.9deg + var(--tt)) / .55)}
+.tmb.on i{box-shadow:0 0 0 3px var(--p2),0 0 0 5px var(--r),0 6px 22px oklch(0.638 calc(0.187 * var(--tk,1)) calc(256.9deg + var(--tt)) / .55)}
 #p-cores input.tmr{width:100%;height:14px;border:0;margin:6px 0 2px;-webkit-appearance:none;appearance:none;border-radius:99px;outline:none;cursor:pointer;
  background:linear-gradient(90deg,oklch(.64 .17 76.9deg),oklch(.64 .17 121.9deg),oklch(.64 .17 166.9deg),oklch(.64 .17 211.9deg),oklch(.64 .17 256.9deg),oklch(.64 .17 301.9deg),oklch(.64 .17 346.9deg),oklch(.64 .17 31.9deg),oklch(.64 .17 76.9deg))}
 #p-cores input.tmr::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;border-radius:50%;background:#fff;border:3px solid var(--r);box-shadow:0 2px 10px rgba(0,0,0,.5)}
@@ -1382,6 +1464,29 @@ html.leve .atu-not,html.leve .atu-card{animation:none}html.leve .atu-not{-webkit
  <button class="atu-x" id="atuX" aria-label="Fechar o aviso">&times;</button>
 </div></div>
 <div id="toasts"></div>
+<div id="otm" role="dialog" aria-modal="true" aria-labelledby="otmT"><div class="ox">
+ <div class="orun">
+  <h3 id="otmT">Otimizando</h3>
+  <div class="oan" aria-hidden="true"><svg viewBox="0 0 200 200">
+   <defs><clipPath id="otmCl"><circle cx="100" cy="100" r="80"/></clipPath>
+    <linearGradient id="otmGl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5da2fb"/><stop offset="1" stop-color="#0c448e"/></linearGradient>
+    <linearGradient id="otmAr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b5d4fd"/><stop offset="1" stop-color="#3389fa"/></linearGradient></defs>
+   <circle cx="100" cy="100" r="80" fill="#0a0e13"/>
+   <g clip-path="url(#otmCl)"><g class="lq" id="otmLq" style="transform:translateY(172px)"><path class="on2" d="M0 6Q50-6 100 6T200 6T300 6T400 6V240H0Z"/><path class="on1" d="M0 10Q50 0 100 10T200 10T300 10T400 10V240H0Z"/></g></g>
+   <circle cx="100" cy="100" r="80" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1.5"/>
+   <circle class="trilho" cx="100" cy="100" r="93"/>
+   <circle class="arco" id="otmArco" cx="100" cy="100" r="93" pathLength="100" stroke-dasharray="0 100" transform="rotate(-90 100 100)"/>
+  </svg><div class="pct" id="otmPct">0%</div></div>
+  <p id="otmPasso">Começando...</p>
+  <div class="olist" id="otmLista"></div>
+  <div class="olinha"><button type="button" class="bt" id="otmEsc" title="A otimização continua rodando; no fim o resultado aparece aqui">Esconder esta janela</button><button type="button" class="bt" id="otmParar" hidden>Parar</button></div>
+ </div>
+ <div class="ofim">
+  <div class="ook" aria-hidden="true"><svg viewBox="0 0 24 24"><path class="v" d="m5 12.5 4.5 4.5L19 7.5"/><path class="ex" d="M12 6.5v7M12 17.4v.1"/></svg></div>
+  <h2 id="otmFT">OTIMIZADO COM SUCESSO</h2><p id="otmFP"></p><div class="ochips" id="otmCh"></div>
+  <div class="olinha"><button type="button" class="bt" id="otmReini" hidden data-c="reiniciar_pc" data-ct="Reiniciar o PC agora?" data-cp="Salve o que estiver aberto. O PC reinicia em 20 segundos e você pode cancelar aqui. O reinício termina de aplicar os ajustes.">Reiniciar agora</button><button type="button" class="bt p" id="otmOk">Concluir</button></div>
+ </div>
+</div></div>
 <div id="cf"><div class="cx"><h3 id="cfT"></h3><p id="cfP"></p><div class="linha" style="justify-content:flex-end"><button class="bt" id="cfN">Cancelar</button><button class="bt p" id="cfS">Continuar</button></div></div></div>
 
 <script>
@@ -1514,6 +1619,42 @@ $('#barras').innerHTML=[['cpu','CPU'],['ram','RAM'],['gpu','GPU'],['vram','VRAM'
 
 /* ações */
 async function acao(nome,extra){try{const r=await fetch('/api/acao?k='+K,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({acao:nome,...(extra||{})})});if(r.ok){const j=await r.json();if(j&&j.estado){S=j.estado;atualizar(S)}}else toast('Não consegui enviar o comando. Feche e abra o Th Boost de novo.')}catch(e){}}
+/* v9.6: janela da otimização: a % sobe com a lista do que está sendo feito; no fim, "Otimizado com sucesso" */
+const OTM={tipo:null,fase:null,mostra:0,alvo:0,teto:0,raf:0,escondido:false,sg:''};
+function otmFonte(s){if(s.ext&&s.ext.ativo)return ['ext',s.ext];if(s.pre&&s.pre.ativo)return ['pre',s.pre];if(s.otim&&s.otim.ativo)return ['otim',s.otim];return null}
+function otmTitulo(t,e){return t==='ext'?(e.opcoes&&e.opcoes.nivel==='suprema'?'Otimização Suprema':'Otimização Extrema'):t==='pre'?'Otimizando para jogar'+(e.jogo?' '+e.jogo:''):'Otimizando o PC'}
+function otmPinta(){const v=Math.max(0,Math.min(100,OTM.mostra));$('#otmPct').textContent=Math.floor(v)+'%';$('#otmArco').setAttribute('stroke-dasharray',v.toFixed(2)+' 100');$('#otmLq').style.transform=`translateY(${(170-v/100*160).toFixed(1)}px)`}
+function otmAnima(){if(document.documentElement.classList.contains('leve')){OTM.mostra=Math.max(OTM.mostra,OTM.alvo);otmPinta();return}
+ if(OTM.raf)return;const passo=()=>{OTM.raf=0;if(OTM.fase!=='run')return;
+  if(OTM.mostra<OTM.alvo-.2)OTM.mostra+=Math.max(.25,(OTM.alvo-OTM.mostra)*.1);else if(OTM.mostra<OTM.teto)OTM.mostra=Math.min(OTM.teto,OTM.mostra+.03);
+  otmPinta();OTM.raf=requestAnimationFrame(passo)};OTM.raf=requestAnimationFrame(passo)}
+function otmAtualiza(s){const f=otmFonte(s),m=$('#otm');
+ if(f){const [t,e]=f,ps=e.passos||[],n=Math.max(1,ps.length),feitos=ps.filter(p=>p.estado!=='pendente'&&p.estado!=='rodando').length;
+  if(OTM.fase!=='run'||OTM.tipo!==t){Object.assign(OTM,{tipo:t,fase:'run',mostra:Math.max(0,(e.fracao||0)*100-1),escondido:false,sg:''});m.classList.remove('fim','parou');$('#otmT').textContent=otmTitulo(t,e)}
+  OTM.alvo=Math.min(100,(e.fracao||0)*100);OTM.teto=Math.min(99,Math.max(OTM.alvo,(feitos+.9)/n*100));
+  $('#otmPasso').textContent=e.parando?'Parando...':(e.passo||'Começando...');
+  const sg=JSON.stringify(ps.map(p=>[p.nome,p.estado]));
+  if(sg!==OTM.sg){OTM.sg=sg;const L=$('#otmLista');L.innerHTML=ps.map(p=>`<div class="oi ${esc(p.estado)}"><i>${p.estado==='ok'?'<svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg>':p.estado==='erro'?'<svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg>':''}</i><span>${esc(p.nome)}</span></div>`).join('');
+   const r=L.querySelector('.rodando');if(r)L.scrollTop=Math.max(0,r.offsetTop-L.clientHeight/2+r.offsetHeight/2)}
+  const pa=$('#otmParar');pa.hidden=t!=='ext';pa.disabled=!!e.parando;pa.textContent=e.parando?'Parando...':'Parar';
+  if(!OTM.escondido)m.classList.add('on');otmAnima();return}
+ if(OTM.fase==='run'){const t=OTM.tipo;OTM.fase='fim';otmFim(t,t==='ext'?s.ext:t==='pre'?s.pre:s.otim)}}
+function otmFim(t,e){const m=$('#otm'),ps=e.passos||[],n=ps.length,ok=ps.filter(p=>p.estado==='ok').length,erros=ps.filter(p=>p.estado==='erro').length,parou=ps.some(p=>p.texto==='Interrompido'),r=e.resumo||{};
+ const gbt=(v)=>'+'+(Math.round((v||0)*10)/10).toFixed(1).replace('.',',')+' GB';
+ let tit='OTIMIZADO COM SUCESSO',txt,ch;
+ if(t==='ext'){txt=r.reiniciar?'Reinicie o PC para terminar de aplicar tudo. Se quiser voltar atrás, use “Desfazer tudo” na página da Otimização Extrema.':'Seu PC está no modo de desempenho máximo. Se quiser voltar atrás, use “Desfazer tudo” na página da Otimização Extrema.';ch=[[fmtMB(r.limpo_mb||e.mb||0),'liberados'],[String(r.ajustes||0),'ajustes feitos'],[String(r.inicio||0),'fora da inicialização']]}
+ else if(t==='pre'){txt=(r.jogo?`Pode jogar ${r.jogo}. `:'Pode jogar. ')+'Quando você terminar a sessão, tudo volta ao normal.';ch=[[String((r.fechados||[]).length),'programas fechados'],[gbt(r.ram_gb),'de RAM livre'],[`${ok}/${n}`,'passos feitos']]}
+ else{txt='Seu PC está mais leve: lixo apagado, memória liberada e energia no modo certo.';ch=[[fmtMB(e.mb||0),'de lixo apagado'],[`${ok}/${n}`,'passos feitos']]}
+ if(parou){tit='OTIMIZAÇÃO INTERROMPIDA';txt='Parei no meio, como você pediu. O que já foi feito continua valendo.'}
+ else if(erros)txt+=` ${erros===1?'1 passo não deu certo':erros+' passos não deram certo'}: veja os detalhes na página.`;
+ $('#otmFT').textContent=tit;$('#otmFP').textContent=txt;$('#otmCh').innerHTML=ch.map(c=>`<div class="ochip"><b>${esc(c[0])}</b><span>${esc(c[1])}</span></div>`).join('');
+ $('#otmReini').hidden=!(t==='ext'&&!parou&&r.reiniciar);
+ m.classList.toggle('parou',parou);m.classList.add('fim','on');setTimeout(()=>{try{$('#otmOk').focus()}catch(_){}},60)}
+function otmFecha(){$('#otm').classList.remove('on','fim','parou');OTM.fase=null}
+$('#otmEsc').onclick=()=>{OTM.escondido=true;$('#otm').classList.remove('on');toast('A otimização continua rodando. Quando terminar, o resultado aparece aqui.')};
+$('#otmParar').onclick=()=>{const b=$('#otmParar');if(!b.disabled){b.disabled=true;b.textContent='Parando...';acao('extremo_parar')}};
+$('#otmOk').onclick=otmFecha;$('#otmReini').addEventListener('click',otmFecha);
+document.addEventListener('keydown',e=>{if(e.key!=='Escape'||!$('#otm').classList.contains('on')||$('#cf').classList.contains('on'))return;(OTM.fase==='fim'?$('#otmOk'):$('#otmEsc')).click()},true);
 function confirmar(t,p,cb){$('#cfT').textContent=t;$('#cfP').textContent=p;$('#cf').classList.add('on');$('#cfS').onclick=()=>{$('#cf').classList.remove('on');cb()};$('#cfN').onclick=()=>$('#cf').classList.remove('on')}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')$('#cf').classList.remove('on')});
 document.addEventListener('keydown',e=>{if(e.key!=='Enter'&&e.key!==' ')return;const v=e.target.closest&&e.target.closest('.va[data-ir],.vl[data-ir],.va[data-rola]');if(v){e.preventDefault();e.stopPropagation();if(v.dataset.ir)ir(v.dataset.ir);else v.click()}});
@@ -1634,9 +1775,9 @@ $('#p-overlay').addEventListener('click',(e)=>{const p=e.target.closest('[data-o
 const TEMAS=[['azul','Azul',0],['ciano','Ciano',-45],['verde','Verde',-107],['dourado','Dourado',-171],['laranja','Laranja',151],['vermelho','Vermelho',128],['rosa','Rosa',97],['roxo','Roxo',47]];
 let tmUlt=0,tmT=0;
 function montaCores(){$('#p-cores').innerHTML=`<div class="cd led cab" style="--i:0"><div><h2>Cor do painel</h2><p>Escolha a cor do Th Boost inteiro: menu, botões, gráficos, logo e brilhos. Muda na hora e fica guardada para a próxima vez. As cores de aviso continuam as mesmas em qualquer cor: <b style="color:#4ade80">verde</b> é tudo certo, <b style="color:#facc15">amarelo</b> é atenção e <b style="color:#f87171">vermelho</b> é problema.</p></div></div>
- <div class="cd" style="--i:1;margin-top:16px"><h3 style="margin-top:0">Cores prontas</h3><div class="tmg">${TEMAS.map(t=>`<button class="tmb" data-tm="${t[2]}" style="--tt:${t[2]}deg" aria-pressed="false"><i></i><span>${t[1]}</span></button>`).join('')}</div></div>
+ <div class="cd" style="--i:1;margin-top:16px"><h3 style="margin-top:0">Cores prontas</h3><div class="tmg">${TEMAS.map(t=>`<button class="tmb" data-tm="${t[2]}" style="--tt:${t[2]}deg;--tk:${temaTc(t[2])}" aria-pressed="false"><i></i><span>${t[1]}</span></button>`).join('')}</div></div>
  <div class="cd" style="--i:2;margin-top:16px"><h3 style="margin-top:0">Do seu jeito</h3><p class="sub2" style="margin:0 0 14px">Arraste para escolher qualquer tom.</p><input type="range" class="tmr" id="tmR" min="-180" max="180" step="1" value="0" aria-label="Tom da cor do painel"><div class="linha" style="margin-top:14px;gap:12px;justify-content:space-between"><span id="tmV" class="sub2"></span><button class="bt g" id="tmZ">Voltar ao azul</button></div></div>`}
-function temaAplica(tr){TEMA_TR=tr;document.documentElement.style.setProperty('--tr',tr+'deg');pintarCores();if(S)desenharGraficos()}
+function temaAplica(tr){TEMA_TR=tr;TEMA_TC=temaTc(tr);document.documentElement.style.setProperty('--tr',tr+'deg');document.documentElement.style.setProperty('--tc',String(TEMA_TC));pintarCores();if(S)desenharGraficos()}
 function temaMuda(tr){tr=Math.max(-180,Math.min(180,Math.round(+tr||0)));tmUlt=Date.now();temaAplica(tr);clearTimeout(tmT);tmT=setTimeout(()=>{tmUlt=Date.now();acao('tema',{tr})},300)}
 function pintarCores(){const el=$('#p-cores');if(!el)return;el.querySelectorAll('[data-tm]').forEach(b=>{const on=+b.dataset.tm===TEMA_TR;b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on))});
  const r=$('#tmR');if(r&&document.activeElement!==r)r.value=TEMA_TR;const n=TEMAS.find(t=>t[2]===TEMA_TR);$('#tmV').textContent=n?'Cor: '+n[1]+(TEMA_TR?'':' (padrão)'):'Cor: do seu jeito'}
@@ -1659,6 +1800,7 @@ function atualizar(s){
  ['heroBt','otBt'].forEach(id=>{const b=$('#'+id);b.disabled=o.ativo;b.querySelector('span').textContent=o.ativo?'Otimizando...':(id==='heroBt'?'Começar otimização':'Otimizar tudo')});
  if(o0.passos&&o0.passos.length){const sg=JSON.stringify(o0.passos);if($('#passos').dataset.s!==sg){$('#passos').dataset.s=sg;$('#passos').innerHTML=o0.passos.map(p=>`<div class="ps ${p.estado}"><span class="pi">${ico('check')}</span><div><b>${esc(p.nome)}</b><small>${esc(p.texto||(p.estado==='rodando'?'Em andamento...':'Aguardando'))}</small></div>${p.mb>=0.1?`<span class="mb">${fmtMB(p.mb)}</span>`:''}</div>`).join('')}tween($('#otMb'),o0.mb||0,fmtMB)}
  else if(!$('#passos').dataset.v){$('#passos').dataset.v=1;$('#passos').innerHTML=['Limpar temporários','Limpar os navegadores','Limpar caches de programas','Limpeza do Windows','Liberar a RAM','Plano de energia','Limpar o DNS'].map(n=>`<div class="ps"><span class="pi">${ico('check')}</span><div><b>${n}</b><small>Aguardando</small></div></div>`).join('')}
+ otmAtualiza(s);
  /* histórico */
  const hs=s.hist.map(h=>h.id).join(',');if($('#hist').dataset.s!==hs){$('#hist').dataset.s=hs;$('#hist').innerHTML=s.hist.length?s.hist.map(h=>`<div class="hi"><time>${h.h}</time><span>${esc(h.t)}</span></div>`).join(''):'<div class="vz" style="padding:24px"><span>Nenhuma ação ainda. Clique em um botão para começar.</span></div>'}
  /* início */
@@ -1820,29 +1962,35 @@ function pintarMouse(){const r=$('#mvRg'),v=S.mouse_vel;r.disabled=v==null||!CAT
 
 /* ===== mouse: reconhece a marca e o modelo, perfil competitivo e teste (v8.7) ===== */
 function mmHtml(){
- const linha=(k,id,ic,titulo,desc)=>`<div class="mm-row" data-aj="${id}" style="--k:${k}"><span class="mm-ic">${ico(ic)}</span><div class="mm-tx"><b>${titulo}<em class="mm-st" data-st="${id}">…</em></b><small>${desc}</small></div><button class="sw" data-ajsw="${id}" aria-label="${titulo}"><i></i></button><p class="av" hidden>Precisa de Administrador. Feche e abra o Th Boost pelo atalho.</p></div>`;
+ const linha=(k,id,ic,titulo,desc,gr)=>`<div class="mm-row" data-aj="${id}"${gr?` data-mmg="${gr}"`:''} style="--k:${k}"><span class="mm-ic">${ico(ic)}</span><div class="mm-tx"><b>${titulo}<em class="mm-st" data-st="${id}">…</em></b><small>${desc}</small></div><button class="sw" data-ajsw="${id}" aria-label="${titulo}"><i></i></button><p class="av" hidden>Precisa de Administrador. Feche e abra o Th Boost pelo atalho.</p></div>`;
  return `<div class="mm-top" style="--i:0"><div><h2>Configurações do mouse</h2><p>O Th Boost reconhece o seu mouse e deixa a mira mais precisa. Cada ajuste pode ser desfeito.</p></div><button class="mm-chip" id="mmChip" type="button" aria-expanded="false" aria-controls="mmEsc" title="Escolher o mouse à mão">${ico('mouse')}<span id="mmChipT">Procurando mouse…</span></button></div>
 <div class="cd mm-esc" id="mmEsc" style="--i:1" hidden><h3>Escolher o mouse à mão</h3><p>Use quando o Windows não informa o modelo (comum em mouse sem fio com receptor). O Th Boost lembra da escolha neste computador.</p><div class="mm-esc-f"><label>Marca<select class="inp" id="mmMarcaSel" aria-label="Marca do mouse"></select></label><label>Modelo<input class="inp" id="mmModeloIn" maxlength="40" placeholder="Ex.: G502 HERO" autocomplete="off" aria-label="Modelo do mouse"></label></div><div class="linha" style="margin-top:12px"><button class="bt p g" id="mmSalvar" type="button">Usar esta escolha</button><button class="bt g" id="mmAuto" type="button">Voltar ao automático</button></div><p class="mm-det" id="mmDet"></p></div>
-<div class="mm-grade" style="--i:2"><div class="mm-col">
-${linha(0,'mouse_acel','mouse','Mira precisa (sem aceleração)','Tira o “Aprimorar precisão do ponteiro”: o mouse anda sempre a mesma distância, ideal para mirar.')}
-${linha(1,'mouse_usb','energia','Suspensão de USB desligada','A suspensão seletiva de USB deixa de desligar a porta do mouse para economizar energia: ele responde na hora.')}
-<div class="mm-row mm-vel" style="--k:2"><span class="mm-ic">${ico('mouse')}</span><div class="mm-tx"><b>Velocidade do cursor<em class="mm-st lig" id="mvT">-- / 20</em></b><small>Quanto o ponteiro anda a cada movimento do mouse. O padrão do Windows é 10. Vale já ao soltar o controle.</small></div><button class="bt g" id="mvPd" disabled>Padrão</button><div class="mm-sl"><input type="range" id="mvRg" min="1" max="20" value="10" disabled aria-label="Velocidade do ponteiro"><div class="mm-sl-pe"><span>Lento</span><span>Rápido</span></div></div></div>
-<div class="mm-card" style="--k:4"><div class="mm-t-cab"><div><b>Teste de mouse</b><small>Mede a taxa de atualização (Hz) e confere os botões. Aperte Iniciar e mova o mouse bem rápido, em círculos, dentro do quadro por 5 segundos.</small></div><button class="bt p g" id="mmIni" type="button">Iniciar teste</button></div>
+<div class="mm-wrap" style="--i:2"><nav class="mm-menu" aria-label="Partes da página do mouse"><small>Mouse</small><button type="button" data-mmt="aj" aria-pressed="true">${ico('mouse')}<span>Desempenho</span></button><button type="button" data-mmt="te" aria-pressed="false">${ico('dashboard')}<span>Testes</span></button><button type="button" data-mmt="fo" aria-pressed="false">${ico('cores')}<span>Foto do mouse</span></button><small>Teclado</small><button type="button" data-mmt="tc" aria-pressed="false">${ico('teclado')}<span>Teclado</span></button><button type="button" class="mm-menu-esc" id="mmMenuEsc">${ico('busca')}<span>Escolher o mouse</span></button></nav>
+<div class="mm-palco" id="mmPalco" data-t="aj">
+<div class="mm-lado mm-le">
+${linha(0,'mouse_acel','mouse','Mira precisa (sem aceleração)','Tira o “Aprimorar precisão do ponteiro”: o mouse anda sempre a mesma distância, ideal para mirar.','aj')}
+${linha(1,'mouse_usb','energia','Suspensão de USB desligada','A suspensão seletiva de USB deixa de desligar a porta do mouse para economizar energia: ele responde na hora.','aj')}
+<div data-mmg="te" class="mm-card" style="--k:0"><div class="mm-t-cab"><div><b>Teste de mouse</b><small>Mede a taxa de atualização (Hz) e confere os botões. Aperte Iniciar e mova o mouse bem rápido, em círculos, dentro do quadro por 5 segundos.</small></div><button class="bt p g" id="mmIni" type="button">Iniciar teste</button></div>
 <div class="mm-t-area" id="mmArea" tabindex="0" aria-label="Área do teste de mouse" hidden><div class="mm-t-msg" id="mmTmsg"></div><button class="bt g mm-t-x" id="mmFechar" type="button">Fechar</button><div class="mm-t-bar"><i id="mmTbar"></i></div></div>
 <div class="mm-t-res" id="mmRes" hidden><div><small>Taxa de atualização</small><b id="mmHz">--</b></div><div><small>Movimentos medidos</small><b id="mmAm">--</b></div><div><small>Botão esquerdo</small><b id="mmBL">0</b></div><div><small>Botão direito</small><b id="mmBR">0</b></div><div><small>Roda (clique)</small><b id="mmBM">0</b></div><div id="mmDupB"><small>Duplo clique falso</small><b id="mmDup">0</b></div></div>
 <p class="mm-t-nota" id="mmTnota" hidden></p></div>
-<div class="mm-card" style="--k:5"><div class="mm-t-cab"><div><b>Teste de cliques por segundo (CPS)</b><small>Mede a velocidade do seu clique. Aperte Iniciar, depois clique o mais rápido que conseguir no quadro: a contagem de 5 segundos começa no primeiro clique.</small></div><button class="bt p g" id="cpIni" type="button">Iniciar teste</button></div>
+<div class="mm-card mm-foto-c" data-mmg="fo" style="--k:0"><span class="mm-ic">${ico('mouse')}</span><b>Sua foto, sem o fundo</b><small>O Th Boost tira o fundo sozinho e deixa só o mouse no meio da página.</small><ol class="mm-passos"><li>Coloque o mouse em cima de uma folha branca ou de uma mesa lisa.</li><li>Tire a foto de cima, com luz boa.</li><li>Evite sombra forte embaixo do mouse.</li></ol><div class="mm-img-bt"><button class="bt p g" id="mmFotoBt" type="button" title="Tire uma foto do seu mouse em cima de uma folha branca ou mesa lisa: o Th Boost tira o fundo sozinho">Usar minha foto</button><button class="bt g" id="mmFotoRm" type="button" hidden>Tirar foto</button><input type="file" id="mmFotoIn" accept="image/png,image/jpeg,image/webp" hidden></div></div>
+<div data-mmg="tc" class="mm-row" style="--k:0"><span class="mm-ic">${ico('teclado')}</span><div class="mm-tx"><b>Teclado rápido (estilo magnético)<em class="mm-st" id="tkPerfilSt">—</em></b><small>Tira as esperas do Windows: a tecla segurada repete sem atraso, os avisos de Shift não aparecem no meio do jogo e a USB não dorme. Teclado magnético de verdade (que reage no meio do toque) é do próprio teclado; aqui o ganho é do lado do Windows. Desligar devolve o que era antes.</small></div><button class="bt g" id="tkPerfil" type="button" disabled>Ligar</button></div>
+</div>
+<div class="mm-dir" style="--k:1"><div class="mm-img" id="mmImg"><div class="mm-fig" id="mmFig" aria-hidden="true"></div><div class="mm-leg"><small id="mmMarca">Procurando…</small><b id="mmModelo">—</b><span id="mmMeta"></span></div><p class="mm-dica" id="mmDica" hidden></p><ul class="mm-dados" id="mmDados" hidden></ul><p class="mm-dados-n" id="mmDadosN" hidden></p><div class="mm-img-bt"><button class="bt g" id="mmAbrir" type="button">Não é esse? Escolher</button><button class="bt g" id="mmAtualizar" type="button">Atualizar</button></div><small class="mm-nota" id="mmNota">Imagem ilustrativa</small></div></div>
+<div class="mm-lado mm-ld">
+<div data-mmg="aj" class="mm-row mm-vel" style="--k:2"><span class="mm-ic">${ico('mouse')}</span><div class="mm-tx"><b>Velocidade do cursor<em class="mm-st lig" id="mvT">-- / 20</em></b><small>Quanto o ponteiro anda a cada movimento do mouse. O padrão do Windows é 10. Vale já ao soltar o controle.</small></div><button class="bt g" id="mvPd" disabled>Padrão</button><div class="mm-sl"><input type="range" id="mvRg" min="1" max="20" value="10" disabled aria-label="Velocidade do ponteiro"><div class="mm-sl-pe"><span>Lento</span><span>Rápido</span></div></div></div>
+<div data-mmg="aj" class="mm-barra" id="mmBarra" style="--k:3"><span class="mm-ic">${ico('jogos')}</span><div class="mm-tx"><b>Modo competitivo<em class="mm-st" id="mmPerfilSt">—</em></b><small>Liga de uma vez a mira sem aceleração, a velocidade 10/20 (1 para 1) e o USB sem suspensão. Desligar devolve o que era antes.</small></div><button class="bt g" id="mmPerfil" type="button" disabled>Ativar</button></div>
+<div data-mmg="te" class="mm-card" style="--k:1"><div class="mm-t-cab"><div><b>Teste de cliques por segundo (CPS)</b><small>Mede a velocidade do seu clique. Aperte Iniciar, depois clique o mais rápido que conseguir no quadro: a contagem de 5 segundos começa no primeiro clique.</small></div><button class="bt p g" id="cpIni" type="button">Iniciar teste</button></div>
 <div class="mm-t-area" id="cpArea" tabindex="0" aria-label="Área do teste de cliques" hidden><div class="mm-t-msg" id="cpMsg"></div><button class="bt g mm-t-x" id="cpFechar" type="button">Fechar</button><div class="mm-t-bar"><i id="cpBar"></i></div></div>
 <div class="mm-t-res" id="cpRes" hidden><div><small>Cliques</small><b id="cpN">0</b></div><div><small>Média (cliques/s)</small><b id="cpM">--</b></div><div><small>Melhor segundo</small><b id="cpB">--</b></div></div></div>
-<div class="mm-sec" style="--k:6">Teclado</div>
-<div class="mm-row" style="--k:6"><span class="mm-ic">${ico('teclado')}</span><div class="mm-tx"><b>Teclado rápido (estilo magnético)<em class="mm-st" id="tkPerfilSt">—</em></b><small>Tira as esperas do Windows: a tecla segurada repete sem atraso, os avisos de Shift não aparecem no meio do jogo e a USB não dorme. Teclado magnético de verdade (que reage no meio do toque) é do próprio teclado; aqui o ganho é do lado do Windows. Desligar devolve o que era antes.</small></div><button class="bt g" id="tkPerfil" type="button" disabled>Ligar</button></div>
-<div class="mm-card" style="--k:7"><div class="mm-t-cab"><div><b>Teste de teclado</b><small>Aperte teclas dentro do quadro. Mostra quais teclas chegaram e quantas o teclado aceita juntas (importante para jogos).</small></div><button class="bt p g" id="tkIni" type="button">Iniciar teste</button></div>
+<div class="mm-card mm-foto-c" data-mmg="fo" style="--k:1"><span class="mm-ic">${ico('busca')}</span><b>Achar foto na internet</b><small>Abre a busca de imagens com a marca e o modelo do seu mouse. Salve uma foto de fundo branco e depois use “Usar minha foto”: o fundo sai do mesmo jeito.</small><div class="mm-img-bt"><button class="bt g" id="mmFotoBusca" type="button">Achar foto na internet</button></div></div>
+<div data-mmg="tc" class="mm-card" style="--k:1"><div class="mm-t-cab"><div><b>Teste de teclado</b><small>Aperte teclas dentro do quadro. Mostra quais teclas chegaram e quantas o teclado aceita juntas (importante para jogos).</small></div><button class="bt p g" id="tkIni" type="button">Iniciar teste</button></div>
 <div class="tk-ar" id="tkArea" tabindex="0" aria-label="Área do teste de teclado" hidden><div class="tk-msg" id="tkMsg"></div><div class="tk-teclas" id="tkTeclas"></div></div>
 <div class="mm-t-res" id="tkRes" hidden><div><small>Última tecla</small><b id="tkUlt">--</b></div><div><small>Máximo juntas</small><b id="tkMax">0</b></div><div><small>Teclas diferentes</small><b id="tkQtd">0</b></div></div>
 <p class="mm-t-nota" id="tkNota" hidden></p></div>
 </div>
-<div class="mm-dir" style="--k:1"><div class="mm-img" id="mmImg"><div class="mm-fig" id="mmFig" aria-hidden="true"></div><div class="mm-leg"><small id="mmMarca">Procurando…</small><b id="mmModelo">—</b><span id="mmMeta"></span></div><p class="mm-dica" id="mmDica" hidden></p><ul class="mm-dados" id="mmDados" hidden></ul><p class="mm-dados-n" id="mmDadosN" hidden></p><div class="mm-img-bt"><button class="bt g" id="mmAbrir" type="button">Não é esse? Escolher</button><button class="bt g" id="mmAtualizar" type="button">Atualizar</button></div><div class="mm-img-bt mm-img-bt2"><button class="bt g" id="mmFotoBt" type="button">Usar minha foto</button><button class="bt g" id="mmFotoBusca" type="button">Achar foto na internet</button><button class="bt g" id="mmFotoRm" type="button" hidden>Tirar foto</button><input type="file" id="mmFotoIn" accept="image/png,image/jpeg,image/webp" hidden></div><small class="mm-nota" id="mmNota">Imagem ilustrativa</small></div>
-<div class="mm-barra" id="mmBarra" style="--k:2"><span class="mm-ic">${ico('jogos')}</span><div class="mm-tx"><b>Modo competitivo<em class="mm-st" id="mmPerfilSt">—</em></b><small>Liga de uma vez a mira sem aceleração, a velocidade 10/20 (1 para 1) e o USB sem suspensão. Desligar devolve o que era antes.</small></div><button class="bt g" id="mmPerfil" type="button" disabled>Ativar</button></div></div></div>`}
+</div></div>`}
 
 /* ilustração do mouse: 3 formatos, com o destaque na cor da marca e o nome da marca no corpo */
 let mmUid=0;
@@ -1856,6 +2004,8 @@ const MMF={
 function mmTom(h,f){const m=/^#([0-9a-f]{6})$/i.exec(h||'');if(!m)return '#1d1d22';const n=parseInt(m[1],16),t=f>=0?255:0,k=Math.min(1,Math.abs(f)),c=[n>>16&255,n>>8&255,n&255].map(v=>Math.round(v+(t-v)*k));return '#'+c.map(v=>v.toString(16).padStart(2,'0')).join('')}
 const mmHex=h=>/^#[0-9a-f]{6}$/i.test(h||'');
 /* ilustração do mouse. pf = perfil do modelo (corpo, laterais, botões, cabo, luz) ou null; sem perfil vale o desenho por formato */
+/* v9.6: sulcos da rodinha (linhas finas claras e escuras, como borracha) */
+function mmSulcos(cx,y,h,w){let o='';for(let k=0;k<=h;k+=3){o+=`<line x1="${cx-w}" y1="${y+k}" x2="${cx+w}" y2="${y+k}" stroke="#000" stroke-opacity=".45" stroke-width=".9"/><line x1="${cx-w}" y1="${y+k+1}" x2="${cx+w}" y2="${y+k+1}" stroke="#fff" stroke-opacity=".12" stroke-width=".6"/>`}return o}
 function mouseSvg(f,cor,marca,pf){
  const u='mm'+(++mmUid),c=mmHex(cor)?cor:'#3389fa',nome=esc(String(marca||'').toUpperCase().slice(0,14)),S=MMF[f]||MMF.simples;
  pf=pf&&typeof pf==='object'?pf:null;
@@ -1871,7 +2021,12 @@ function mouseSvg(f,cor,marca,pf){
   cabo={defs:cabo,svg:`<path d="${d}" fill="none" stroke="url(#${u}k)" stroke-width="5" stroke-linecap="round"/>`+(pf.fio==='trancado'?`<path d="${d}" fill="none" stroke="#ffffff" stroke-opacity=".3" stroke-width="5" stroke-dasharray="1.6 2.6" stroke-linecap="butt"/>`:'')}}
  const defs=`<defs><linearGradient id="${u}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${g0}"/><stop offset=".45" stop-color="${g1}"/><stop offset="1" stop-color="${g2}"/></linearGradient><linearGradient id="${u}r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".34"/><stop offset=".5" stop-color="#ffffff" stop-opacity=".06"/><stop offset="1" stop-color="${c}" stop-opacity=".55"/></linearGradient>`
   +(rgb?`<linearGradient id="${u}a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff2d55"/><stop offset=".33" stop-color="#ffd60a"/><stop offset=".66" stop-color="#30d158"/><stop offset="1" stop-color="#0a84ff"/></linearGradient>`:'')
-  +`<radialGradient id="${u}s" cx=".35" cy=".25" r=".7"><stop offset="0" stop-color="#ffffff" stop-opacity=".16"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient><filter id="${u}b" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter>${cabo?cabo.defs:''}</defs>`;
+  +`<radialGradient id="${u}s" cx=".35" cy=".25" r=".7"><stop offset="0" stop-color="#ffffff" stop-opacity=".16"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient><filter id="${u}b" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter>${cabo?cabo.defs:''}`
+  /* v9.6: acabamento — brilho de cima, volume nas bordas, rodinha com sulcos e sombra de contato */
+  +`<clipPath id="${u}c"><path d="${S.b}"/></clipPath><filter id="${u}m" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="7"/></filter><filter id="${u}p" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.6"/></filter>`
+  +`<linearGradient id="${u}w" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1a1b1f"/><stop offset=".5" stop-color="#5d6270"/><stop offset="1" stop-color="#1a1b1f"/></linearGradient></defs>`;
+ const claro=corpo?(()=>{const h=corpo.replace('#','');return (0.2126*parseInt(h.slice(0,2),16)+0.7152*parseInt(h.slice(2,4),16)+0.0722*parseInt(h.slice(4,6),16))/255>.55})():false;
+ const acab=`<g clip-path="url(#${u}c)"><path d="${S.b}" fill="none" stroke="#000" stroke-opacity="${claro?.22:.5}" stroke-width="${claro?12:16}" filter="url(#${u}m)"/><ellipse cx="${cx-17}" cy="${S.top+(S.mid[1]-S.top)*.55}" rx="17" ry="${Math.max(30,(S.mid[1]-S.top)*.75)}" fill="#ffffff" opacity="${corpo?.2:.13}" filter="url(#${u}m)"/><ellipse cx="${cx+24}" cy="${S.mid[1]+48}" rx="10" ry="36" fill="#ffffff" opacity=".05" filter="url(#${u}m)"/></g>`;
  const corpoSvg=dois
   ?`<path d="${S.b}" fill="${lat}"/><g transform="translate(${S.mid[0]} ${S.mid[1]}) scale(.9 .965) translate(${-S.mid[0]} ${-S.mid[1]})"><path d="${S.b}" fill="url(#${u}g)"/></g><path d="${S.b}" fill="url(#${u}s)"/><path d="${S.b}" fill="none" stroke="url(#${u}r)" stroke-width="1.4"/>`
   :`<path d="${S.b}" fill="url(#${u}g)"/><path d="${S.b}" fill="url(#${u}s)"/><path d="${S.b}" fill="none" stroke="url(#${u}r)" stroke-width="1.4"/>`;
@@ -1879,16 +2034,17 @@ function mouseSvg(f,cor,marca,pf){
  const dpi=pf&&pf.dpi?`<rect x="${cx-5}" y="${S.roda[1]+8}" width="10" height="6" rx="3" fill="#09090b" stroke="${c}" stroke-opacity=".7"/>`:'';
  const rec=pf&&pf.semfio?`<rect x="160" y="238" width="16" height="26" rx="2.5" fill="#2a2c31" stroke="#ffffff" stroke-opacity=".18"/><rect x="163" y="228" width="10" height="12" rx="1.5" fill="#a3a8b1"/><rect x="165" y="231" width="2" height="2" fill="#40444c"/><rect x="169" y="231" width="2" height="2" fill="#40444c"/>`:'';
  return `<svg viewBox="${S.vb||'0 0 200 300'}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">${defs}`
- +`<ellipse cx="100" cy="${S.sh||294}" rx="${S.vb?50:62}" ry="8" fill="${disc?'#000':c}" opacity="${disc?.55:.38}" filter="url(#${u}b)"/>`
+ +`<ellipse cx="100" cy="${S.sh||294}" rx="${S.vb?50:62}" ry="8" fill="${disc?'#000':c}" opacity="${disc?.55:.38}" filter="url(#${u}b)"/><ellipse cx="100" cy="${(S.sh||294)-3}" rx="${S.vb?34:42}" ry="3.5" fill="#000" opacity=".55" filter="url(#${u}p)"/>`
  +(cabo?cabo.svg:'')
  +corpoSvg
+ +acab
  +(S.grip?`<path d="${S.grip}" fill="none" stroke="${c}" stroke-opacity=".55" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="1 5"/>`:'')
  +`<path d="${S.sep}" stroke="#000" stroke-opacity=".75" stroke-width="2.2" fill="none"/><path d="${S.sep}" transform="translate(1.6 0)" stroke="#ffffff" stroke-opacity=".08" fill="none"/><path d="${S.arc}" stroke="#000" stroke-opacity=".65" stroke-width="2" fill="none" stroke-linecap="round"/>`
- +(disc?`<rect x="${cx-6}" y="${S.roda[0]}" width="12" height="${rh}" rx="6" fill="#0d0e10" stroke="#ffffff" stroke-opacity=".16"/><rect x="${cx-2}" y="${S.roda[0]+4}" width="4" height="${rh-8}" rx="2" fill="#5b606a"/>`:`<rect x="${cx-6.5}" y="${S.roda[0]}" width="13" height="${rh}" rx="6.5" fill="#09090b" stroke="${c}" stroke-opacity="${pf&&!rgb?.25:.55}"/><rect x="${cx-2.2}" y="${S.roda[0]+4}" width="4.4" height="${rh-8}" rx="2.2" fill="${c}" opacity="${pf&&!rgb?.35:.6}" filter="url(#${u}b)"/><rect x="${cx-2.2}" y="${S.roda[0]+4}" width="4.4" height="${rh-8}" rx="2.2" fill="${c}" opacity="${pf&&!rgb?.55:.9}"/>`)
+ +(disc?`<rect x="${cx-6}" y="${S.roda[0]}" width="12" height="${rh}" rx="6" fill="#0d0e10" stroke="#ffffff" stroke-opacity=".16"/><rect x="${cx-2.4}" y="${S.roda[0]+3}" width="4.8" height="${rh-6}" rx="2.4" fill="url(#${u}w)"/>${mmSulcos(cx,S.roda[0]+5,rh-10,1.9)}`:`<rect x="${cx-6.5}" y="${S.roda[0]}" width="13" height="${rh}" rx="6.5" fill="#09090b" stroke="${c}" stroke-opacity="${pf&&!rgb?.25:.55}"/><rect x="${cx-2.2}" y="${S.roda[0]+4}" width="4.4" height="${rh-8}" rx="2.2" fill="${c}" opacity="${pf&&!rgb?.35:.6}" filter="url(#${u}b)"/><rect x="${cx-2.2}" y="${S.roda[0]+4}" width="4.4" height="${rh-8}" rx="2.2" fill="${c}" opacity="${pf&&!rgb?.55:.9}"/>${mmSulcos(cx,S.roda[0]+6,rh-12,1.8)}`)
  +dpi
  +lados.map(([x,y,w,h])=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="#26262c" stroke="#ffffff" stroke-opacity=".12"/>`).join('')
  +luz
- +(nome?(disc?'':txt(`opacity=".55" filter="url(#${u}b)"`))+txt(''):`<circle cx="${S.logo[0]}" cy="${S.logo[1]-4}" r="5" fill="${c}"/>`)
+ +`<circle cx="${S.logo[0]}" cy="${S.logo[1]-4}" r="${disc?3.2:4.4}" fill="${disc?mmTom(g1,-.5):c}" opacity="${disc?1:.9}"/>`+(disc?'':`<circle cx="${S.logo[0]}" cy="${S.logo[1]-4}" r="7" fill="${c}" opacity=".35" filter="url(#${u}b)"/>`)
  +rec
  +`</svg>`}
 /* a figura do mouse: a foto da pessoa, se ela guardou uma; senão o desenho do modelo */
@@ -1896,7 +2052,9 @@ function mmFigura(f,d,pf){
  const desenho=()=>{f.classList.remove('foto');f.innerHTML=mouseSvg(d.formato,d.cor,d.marca,pf)};
  desenho();
  if(d.foto){const im=new Image();im.className='mm-foto';im.alt='Foto do seu mouse';
-  im.onload=()=>{f.classList.add('foto');f.innerHTML='';f.appendChild(im);f.classList.remove('ent');void f.offsetWidth;f.classList.add('ent')};
+  im.onload=()=>{try{const t=document.createElement('canvas');t.width=t.height=8;const tx=t.getContext('2d');tx.drawImage(im,0,0,8,8);const a=tx.getImageData(0,0,8,8).data;
+    im.classList.toggle('sem-fundo',a[3]<40&&a[31]<40&&a[227]<40&&a[255]<40)}catch(_){} /* cantos transparentes: foto recortada */
+   f.classList.add('foto');f.innerHTML='';f.appendChild(im);f.classList.remove('ent');void f.offsetWidth;f.classList.add('ent')};
   im.onerror=desenho;im.src='/api/mouse_foto?k='+K+'&v='+encodeURIComponent(d.foto)}}
 
 /* estado vindo do programa (marca, modelo, conexão) */
@@ -1934,6 +2092,14 @@ function pintarMouseInfo(){
  $('#mmDet').textContent=d.vid?`O Windows informou o fabricante ${d.vid} e o produto ${d.pid}${d.conexao?' ('+d.conexao+')':''}.`:''}
 function mmAbrirEsc(abrir){const p=$('#mmEsc'),b=$('#mmChip');abrir=abrir==null?p.hidden:abrir;p.hidden=!abrir;b.setAttribute('aria-expanded',abrir);if(abrir){pintarMouseInfo();const s=$('#mmMarcaSel');s.value=(MMJ&&MMJ.manual&&MMJ.manual.marca)||(MMJ&&MMJ.dados&&MMJ.dados.marca)||'';$('#mmModeloIn').value=(MMJ&&MMJ.manual&&MMJ.manual.modelo)||(MMJ&&MMJ.dados&&MMJ.dados.modelo)||'';p.scrollIntoView({block:'nearest'});$('#mmModeloIn').focus()}}
 $('#mmChip').onclick=()=>mmAbrirEsc();
+/* v9.6: menu da página do mouse (as partes trocam os cartões dos lados; o mouse fica sempre no meio) */
+function mmAba(t,anima){const p=$('#mmPalco');if(!p||!/^(aj|te|fo|tc)$/.test(t))return;p.dataset.t=t;
+ $$('.mm-menu [data-mmt]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mmt===t)));
+ if(anima&&!document.documentElement.classList.contains('leve'))$$('[data-mmg="'+t+'"]',p).forEach(c=>{c.classList.remove('mm-troca');void c.offsetWidth;c.classList.add('mm-troca')});
+ try{localStorage.setItem('thboost-mm-aba',t)}catch(_){}}
+$$('.mm-menu [data-mmt]').forEach(b=>b.onclick=()=>mmAba(b.dataset.mmt,true));
+$('#mmMenuEsc').onclick=()=>{mmAbrirEsc(true);const e=$('#mmEsc');if(e)e.scrollIntoView({block:'nearest',behavior:'smooth'})};
+try{const t=localStorage.getItem('thboost-mm-aba');if(t)mmAba(t,false)}catch(_){}
 $('#mmAbrir').onclick=()=>mmAbrirEsc(true);
 $('#mmAtualizar').onclick=()=>{MMTent=0;MMSIG='';acao('mouse_ler');setTimeout(carregarMouse,500)};
 $('#mmSalvar').onclick=async()=>{const marca=$('#mmMarcaSel').value,modelo=$('#mmModeloIn').value.trim();if(!marca&&!modelo){toast('Escolha a marca ou escreva o modelo.');return}
@@ -1956,18 +2122,76 @@ $('#tkPerfil').onclick=()=>{
  else confirmar('Ligar o teclado rápido?','Vou tirar a espera da repetição das teclas, desligar os avisos de acessibilidade do Shift e desligar a suspensão de USB. Dá para desfazer aqui mesmo.',()=>acao('teclado_perfil',{ligar:true}))};
 
 /* foto do mouse: a pessoa escolhe um arquivo; a tela reduz e manda ao programa (fica só neste PC) */
+/* v9.6: tira o fundo da foto do mouse (foto do celular com o mouse em cima de uma folha ou mesa lisa).
+   Acha a cor do fundo pelas bordas, "pinta" o fundo a partir das bordas (aceitando a variação suave de luz e sombra),
+   fica com o maior pedaço que sobrou (o mouse), suaviza a borda e corta em volta. Tudo aqui no computador. */
+function mmRecorta(bmp){
+ const L=640,e=Math.min(1,L/Math.max(bmp.width,bmp.height)),W=Math.max(8,Math.round(bmp.width*e)),H=Math.max(8,Math.round(bmp.height*e)),N=W*H;
+ const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(bmp,0,0,W,H);
+ const im=x.getImageData(0,0,W,H),d=im.data;
+ let tr=0;for(let i=3;i<d.length;i+=4)if(d[i]<20)tr++;if(tr>N*0.05)return {cv:c,ok:true,ja:true}; // já veio sem fundo
+ // cópia suavizada (tira o chiado da câmera e os quadradinhos do JPEG antes de comparar as cores)
+ const s=new Float32Array(N*3);for(let y=0;y<H;y++)for(let x2=0;x2<W;x2++){let r=0,g=0,b=0,n=0;for(let j=-1;j<=1;j++){const yy=y+j;if(yy<0||yy>=H)continue;for(let i=-1;i<=1;i++){const xx=x2+i;if(xx<0||xx>=W)continue;const q=(yy*W+xx)*4;r+=d[q];g+=d[q+1];b+=d[q+2];n++}}const p=(y*W+x2)*3;s[p]=r/n;s[p+1]=g/n;s[p+2]=b/n}
+ // cores no espaço Lab (como o olho vê): separa melhor um mouse claro de uma mesa de madeira
+ const lin=new Float32Array(256);for(let i=0;i<256;i++){const v=i/255;lin[i]=v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4)}
+ const fL=(t)=>t>.008856?Math.cbrt(t):7.787*t+16/116,lab=new Float32Array(N*3);
+ for(let p=0;p<N;p++){const r=lin[Math.round(s[p*3])],g=lin[Math.round(s[p*3+1])],b=lin[Math.round(s[p*3+2])];
+  const fx=fL((.4124*r+.3576*g+.1805*b)/.95047),fy=fL(.2126*r+.7152*g+.0722*b),fz=fL((.0193*r+.1192*g+.9505*b)/1.08883);lab[p*3]=116*fy-16;lab[p*3+1]=500*(fx-fy);lab[p*3+2]=200*(fy-fz)}
+ const borda=[];for(let i=0;i<W;i++)borda.push(i,(H-1)*W+i);for(let j=1;j<H-1;j++)borda.push(j*W,j*W+W-1);
+ const med=(k)=>{const v=borda.map(p=>lab[p*3+k]).sort((a,b)=>a-b);return v[v.length>>1]},bg=[med(0),med(1),med(2)];
+ // distância até o fundo: o que só ficou mais escuro com a mesma cor (sombra) conta menos
+ const dc=(p,L,A,B)=>{let dl=lab[p*3]-L;if(dl<0)dl*=.5;const da=lab[p*3+1]-A,dB=lab[p*3+2]-B;return Math.sqrt(dl*dl+da*da+dB*dB)};
+ const dv=(p,q)=>{const a=lab[p*3]-lab[q*3],b=lab[p*3+1]-lab[q*3+1],e=lab[p*3+2]-lab[q*3+2];return Math.sqrt(a*a+b*b+e*e)};
+ const db=borda.map(p=>dc(p,bg[0],bg[1],bg[2])).sort((a,b)=>a-b);
+ if(db[Math.floor(db.length*.5)]>12)return {cv:c,ok:false,por:'fundo'}; // fundo com muita coisa: não dá para saber o que é o mouse
+ const thr=Math.max(7,Math.min(22,db[Math.floor(db.length*.9)]*1.5+4));
+ const fundo=new Uint8Array(N),fila=new Int32Array(N);let ini=0,fim=0;
+ for(const p of borda)if(!fundo[p]&&dc(p,bg[0],bg[1],bg[2])<thr*1.2){fundo[p]=1;fila[fim++]=p}
+ if(fim<borda.length*0.6)return {cv:c,ok:false,por:'fundo'};
+ // o fundo cresce a partir das bordas; entra aos poucos na luz desigual e na sombra suave, mas para na borda do mouse
+ while(ini<fim){const p=fila[ini++],px=p%W,py=(p/W)|0;
+  for(const q of [px>0?p-1:-1,px<W-1?p+1:-1,py>0?p-W:-1,py<H-1?p+W:-1]){if(q<0||fundo[q])continue;
+   const a=dc(q,bg[0],bg[1],bg[2]);if(a<thr||(a<thr*2.2&&dv(p,q)<1.4&&Math.hypot(lab[q*3+1]-bg[1],lab[q*3+2]-bg[2])<thr*.45)){fundo[q]=1;fila[fim++]=q}}}
+ // fica com o maior pedaço que não é fundo (o mouse); pontinhos soltos somem
+ const rot=new Int32Array(N).fill(-1);let melhor=-1,maior=0,id=0;
+ for(let s0=0;s0<N;s0++){if(fundo[s0]||rot[s0]>=0)continue;let a=0,b=0;fila[b++]=s0;rot[s0]=id;
+  while(a<b){const p=fila[a++],px=p%W,py=(p/W)|0;for(const q of [px>0?p-1:-1,px<W-1?p+1:-1,py>0?p-W:-1,py<H-1?p+W:-1])if(q>=0&&!fundo[q]&&rot[q]<0){rot[q]=id;fila[b++]=q}}
+  if(b>maior){maior=b;melhor=id}id++}
+ if(melhor<0||maior<N*0.03||maior>N*0.92)return {cv:c,ok:false,por:'tamanho'};
+ let al=new Float32Array(N),x0=W,y0=H,x1=0,y1=0;for(let p=0;p<N;p++)if(rot[p]===melhor){al[p]=1;const px=p%W,py=(p/W)|0;if(px<x0)x0=px;if(px>x1)x1=px;if(py<y0)y0=py;if(py>y1)y1=py}
+ const tocaBorda=(x0===0)+(y0===0)+(x1===W-1)+(y1===H-1);if(tocaBorda>=3)return {cv:c,ok:false,por:'borda'};
+ // buraquinhos dentro do mouse (reflexo da luz da mesma cor do fundo) voltam a ser mouse
+ const fora=new Uint8Array(N);ini=0;fim=0;for(const p of borda)if(!al[p]&&!fora[p]){fora[p]=1;fila[fim++]=p}
+ while(ini<fim){const p=fila[ini++],px=p%W,py=(p/W)|0;for(const q of [px>0?p-1:-1,px<W-1?p+1:-1,py>0?p-W:-1,py<H-1?p+W:-1])if(q>=0&&!al[q]&&!fora[q]){fora[q]=1;fila[fim++]=q}}
+ for(let p=0;p<N;p++)if(!fora[p])al[p]=1;
+ {const t=new Float32Array(N);for(let y=0;y<H;y++)for(let x2=0;x2<W;x2++){const p=y*W+x2;t[p]=al[p]&&(x2===0||al[p-1])&&(x2===W-1||al[p+1])&&(y===0||al[p-W])&&(y===H-1||al[p+W])?1:0}al=t} // 1 pixel para dentro: a borda clara do fundo não fica em volta do mouse
+ const nucleo=al;
+ for(let it=0;it<2;it++){const t=new Float32Array(N);for(let y=0;y<H;y++)for(let x2=0;x2<W;x2++){let s2=0,n=0;for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){const xx=x2+i,yy=y+j;if(xx>=0&&yy>=0&&xx<W&&yy<H){s2+=al[yy*W+xx];n++}}t[y*W+x2]=s2/n}al=t}
+ for(let p=0;p<N;p++){const v=al[p]<0.5?al[p]*al[p]*2:1-(1-al[p])*(1-al[p])*2;d[p*4+3]=Math.round(255*v)} // borda macia, sem "auréola"
+ // na borda macia, a cor vem de dentro do mouse (sem o resto da cor da folha/mesa em volta)
+ for(let p=0;p<N;p++){const a=d[p*4+3];if(a<3||a>250)continue;const px=p%W,py=(p/W)|0;let r=0,g=0,b=0,n=0;
+  for(let j=-2;j<=2;j++){const yy=py+j;if(yy<0||yy>=H)continue;for(let i=-2;i<=2;i++){const xx=px+i;if(xx<0||xx>=W)continue;const q=yy*W+xx;if(nucleo[q]){r+=d[q*4];g+=d[q*4+1];b+=d[q*4+2];n++}}}
+  if(n){d[p*4]=r/n;d[p*4+1]=g/n;d[p*4+2]=b/n}}
+ x.putImageData(im,0,0);
+ const pad=Math.round(Math.max(x1-x0,y1-y0)*0.06),cx0=Math.max(0,x0-pad),cy0=Math.max(0,y0-pad),cw=Math.min(W,x1+pad+1)-cx0,ch=Math.min(H,y1+pad+1)-cy0;
+ const o=document.createElement('canvas');o.width=cw;o.height=ch;o.getContext('2d').drawImage(c,cx0,cy0,cw,ch,0,0,cw,ch);
+ return {cv:o,ok:true,area:maior/N}}
+async function mmBlob(c,tipo,q0){let q=q0,blob=null;for(let i=0;i<7;i++){blob=await new Promise(r=>c.toBlob(r,tipo,q));if(blob&&blob.size<=280*1024)break;q-=.12}return blob}
 async function mmEnviarFoto(arq){
  if(!arq)return;
  if(!/^image\//.test(arq.type||'')){toast('Escolha um arquivo de imagem (PNG, JPG ou WEBP).');return}
  try{
-  const bmp=await createImageBitmap(arq),lado=560,e=Math.min(1,lado/Math.max(bmp.width,bmp.height));
-  const c=document.createElement('canvas');c.width=Math.max(1,Math.round(bmp.width*e));c.height=Math.max(1,Math.round(bmp.height*e));
-  const x=c.getContext('2d');x.fillStyle='#ffffff';x.fillRect(0,0,c.width,c.height);x.drawImage(bmp,0,0,c.width,c.height);
-  let q=.9,blob=null;
-  for(let i=0;i<7;i++){blob=await new Promise(r=>c.toBlob(r,'image/jpeg',q));if(blob&&blob.size<=280*1024)break;q-=.12}
+  const bmp=await createImageBitmap(arq);
+  let blob=null,recorte=null;
+  try{recorte=mmRecorta(bmp);if(recorte.ok)blob=await mmBlob(recorte.cv,'image/webp',.92)}catch(_){recorte=null}
+  if(blob&&blob.type!=='image/webp')blob=await mmBlob(recorte.cv,'image/png',1); // navegador sem WEBP: PNG (também guarda o transparente)
+  if(!blob||blob.size>280*1024){ // não deu para tirar o fundo: guarda a foto inteira, como antes
+   const lado=560,e=Math.min(1,lado/Math.max(bmp.width,bmp.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(bmp.width*e));c.height=Math.max(1,Math.round(bmp.height*e));
+   const x=c.getContext('2d');x.fillStyle='#ffffff';x.fillRect(0,0,c.width,c.height);x.drawImage(bmp,0,0,c.width,c.height);
+   blob=await mmBlob(c,'image/jpeg',.9);recorte={ok:false}}
   if(!blob||blob.size>280*1024){toast('A foto ficou grande demais. Escolha uma imagem menor.');return}
   const r=await fetch('/api/mouse_foto?k='+K,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:blob});
-  if(r.ok){toast('Foto guardada. Ela aparece no lugar do desenho.');MMSIG='';await carregarMouse()}
+  if(r.ok){toast(recorte&&recorte.ok?'Foto guardada, já sem o fundo. Ela aparece no lugar do desenho.':'Foto guardada, mas não deu para tirar o fundo dela. Para sair recortada: mouse em cima de uma folha branca ou mesa lisa, foto de cima e sem sombra forte.');MMSIG='';await carregarMouse()}
   else{let m='Não consegui guardar a foto.';try{const j=await r.json();if(j&&j.erro)m=j.erro}catch(_){}toast(m)}
  }catch(err){toast('Não consegui abrir essa imagem. Use PNG, JPG ou WEBP.')}}
 $('#mmFotoBt').onclick=()=>$('#mmFotoIn').click();
