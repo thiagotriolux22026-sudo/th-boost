@@ -985,6 +985,7 @@ html.leve .w3::before{text-shadow:.018em .02em 0 #3c9bff,.036em .04em 0 #348cf6,
 .atu-x{position:absolute;top:12px;right:14px;width:34px;height:34px;border:0;border-radius:10px;background:none;color:#8a9ab3;font-size:24px;line-height:1;cursor:pointer}.atu-x:hover{color:#fff;background:#1a2436}
 html.leve .atu-not,html.leve .atu-card{animation:none}html.leve .atu-not{-webkit-backdrop-filter:none;backdrop-filter:none}html.leve .atu-not.toca .atu-ic svg{animation:none}
 @media (max-width:560px){.atu-card{flex-direction:column;gap:14px;padding:22px 20px 20px}.atu-cx b{font-size:19px}}
+#ocV .ocm{display:block;margin-top:4px;font-size:11px;line-height:1.35;color:var(--m);text-transform:none;letter-spacing:0;font-weight:500}
 /* v9.2: cor do painel */
 .tmg{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:12px}
 .tmb{display:grid;justify-items:center;gap:10px;padding:16px 10px 14px;border-radius:16px;border:1px solid var(--l);background:var(--p2);color:var(--t);cursor:pointer;font:inherit;font-weight:600;transition:border-color .2s,transform .2s}
@@ -1177,7 +1178,7 @@ html.leve .atu-not,html.leve .atu-card{animation:none}html.leve .atu-not{-webkit
           </div>
         </div>
         <div class="grade g3" id="gpuChips" style="--i:2"></div>
-        <div class="cd" style="--i:3"><h3>Atenção</h3><p>Overclock é por sua conta e risco: acima do padrão a placa esquenta e gasta mais, e se ela não aguentar o jogo (ou o Windows) pode travar. O Th Boost <b>sempre abre em 0%</b>, não grava nada na placa (reiniciar o PC volta ao padrão), zera sozinho ao fechar e desliga sozinho se a placa passar de <b id="ocLim">88</b>°C. A barra vai até 150% da faixa que a própria placa libera: 100% já é forte, acima disso só para quem sabe o que está fazendo. Precisa de Administrador e de placa NVIDIA com driver atualizado. Para AMD ou Intel use o programa do fabricante.</p></div>
+        <div class="cd" style="--i:3"><h3>Atenção</h3><p>Overclock é por sua conta e risco: acima do padrão a placa esquenta e gasta mais, e se ela não aguentar o jogo (ou o Windows) pode travar. O Th Boost <b>sempre abre em 0%</b>, não grava nada na placa (reiniciar o PC volta ao padrão), zera sozinho ao fechar e desliga sozinho se a placa passar de <b id="ocLim">88</b>°C. A barra vai até 150% da faixa que a própria placa libera: 100% já é forte, acima disso só para quem sabe o que está fazendo. Precisa de Administrador e de placa NVIDIA com driver atualizado: funciona das GTX 600 em diante, inclusive as mais antigas como a GTX 750 (em notebook, muitas vezes o próprio driver trava o núcleo e a memória). Placa AMD: use o <b>AMD Software: Adrenalin</b>, em Desempenho › Ajuste. Placa Intel Arc: use o <b>Intel Graphics Software</b> (ou Arc Control). O vídeo integrado do processador (Intel UHD/Iris) não aceita overclock.</p></div>
       </section>
 
       <!-- MONITOR -->
@@ -1541,7 +1542,7 @@ function rgTxt(){const r=$('#rg'),n=+r.value,oc=(S&&S.oc)||{},i=oc.info,ap=oc.ni
  $('#ocPct').textContent=n+'%';$('#ocRot').textContent=n===0?'Padrão da placa':n<=50?'Leve':n<=100?'Moderado':'Agressivo · mais calor';
  $('#ocN').className='ocn'+(n>100?' ag':n>50?' mod':'');
  if(i&&i.tabela){const l=i.tabela.find(x=>x[0]===n)||i.tabela[0],nd='não aceita';
-  $('#ocV').innerHTML=[['Núcleo',i.nucleo.ok?'+'+l[1]+' MHz':nd],['Memória',i.memoria.ok?'+'+l[2]+' MHz':nd],['Potência',i.potencia.ok?l[3]+' W':nd]].map(x=>`<div><small>${x[0]}</small><b>${x[1]}</b></div>`).join('')}
+  $('#ocV').innerHTML=[['Núcleo',i.nucleo.ok?'+'+l[1]+' MHz':nd,i.nucleo],['Memória',i.memoria.ok?'+'+l[2]+' MHz':nd,i.memoria],['Potência',i.potencia.ok?l[3]+' W':nd,i.potencia]].map(x=>`<div${!x[2].ok&&x[2].motivo?` title="${esc(x[2].motivo)}"`:''}><small>${x[0]}</small><b>${x[1]}</b>${!x[2].ok&&x[2].motivo?`<small class="ocm">${esc(x[2].motivo)}</small>`:''}</div>`).join('')}
  const pode=!!(i&&i.suporte&&i.algum);$('#ocAp').disabled=!pode||n===ap;$('#ocRe').disabled=!pode||(ap===0&&n===0)}
 function fx(){return !document.documentElement.classList.contains('leve')}
 function setFx(ligado,salvar){document.documentElement.classList.toggle('leve',!ligado);if(salvar){try{localStorage.setItem('thboost-leve',ligado?'0':'1')}catch(e){}}$('#swFx').classList.toggle('on',ligado);$('#stFx').textContent=ligado?'COMPLETOS':'LEVES';$('#stFx').classList.toggle('on',ligado)}

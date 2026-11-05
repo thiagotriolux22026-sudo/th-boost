@@ -17,6 +17,7 @@ OC_MAX = 150
 OC_PASSO = 5
 OC_NUCLEO_150 = 150     # MHz no núcleo quando a barra está em 150%
 OC_MEM_150 = 500        # MHz na memória quando a barra está em 150%
+OC_MEM_150_NVAPI = 250  # MHz na memória pelo caminho das placas mais antigas (a escala do driver ali é outra: vai mais devagar)
 OC_TEMP_LIMITE = 88     # graus: passou disso, o overclock é desligado sozinho
 OC_TEMP_AVISO = 83      # graus: a tela avisa que está esquentando
 
@@ -174,11 +175,160 @@ def _motivo_nvml(cod):
     return _NVML_ERROS.get(cod, f"erro {cod} da biblioteca da NVIDIA")
 
 
+# ---------------- v9.3: placas NVIDIA mais antigas (GTX 600, 700, 900, 10...) ----------------
+# A NVML só aceita ajuste de núcleo e memória nas placas e drivers mais novos. Nas outras (por exemplo a GTX 750), o
+# Th Boost usa a NVAPI, a outra biblioteca que vem no driver da NVIDIA (nvapi64.dll), do mesmo jeito que os programas de
+# overclock fazem: lê a tabela de "estados de desempenho" (P-states) e muda só o deslocamento (offset) do P0, o estado
+# de jogo. O próprio driver diz se a placa deixa mexer e até quanto; nada é gravado na placa (reiniciar volta ao padrão).
+
+_NVAPI_IDS = {"init": 0x0150E828, "enum": 0xE5AC921F, "nome": 0xCEEE8E9F, "ler": 0x6FF81213, "definir": 0x0F4DAE6B}
+_PS20_TAM = 7316                    # sizeof(NV_GPU_PERF_PSTATES20_INFO_V1)
+_PS20_VER1 = _PS20_TAM | (1 << 16)  # MAKE_NVAPI_VERSION(NV_GPU_PERF_PSTATES20_INFO_V1, 1)
+_PS20_PSTATE = 456                  # um P-state: id, editável, 8 clocks de 44 bytes e 4 tensões de 24 bytes
+_PS20_CLOCK = 44
+NVAPI_NUCLEO, NVAPI_MEMORIA = 0, 4  # NVAPI_GPU_PUBLIC_CLOCK_GRAPHICS / _MEMORY
+_NVAPI_ERROS = {-1: "o driver recusou", -3: "este driver não tem esse ajuste", -5: "valor recusado pela placa",
+                -6: "nenhuma placa NVIDIA encontrada", -9: "este driver é diferente do esperado (atualize o driver da NVIDIA)",
+                -104: "esta placa não aceita esse ajuste", -137: "precisa abrir o Th Boost como Administrador"}
+
+
+def nvapi_ps20_ler(buf):
+    """Lê a tabela P-states 2.0 (bytes da NVAPI) e devolve {domínio: {editavel, agora, min, max}} do P0, em MHz.
+    Função pura (dá para testar fora do Windows)."""
+    import struct as _st
+    if len(buf) < _PS20_TAM:
+        return {}
+    _ver, flags, n_ps, n_clk, _n_v = _st.unpack_from("<IIIII", buf, 0)
+    out = {}
+    for i in range(min(n_ps, 16)):
+        base = 20 + i * _PS20_PSTATE
+        ps_id, ps_flags = _st.unpack_from("<II", buf, base)
+        if ps_id != 0:  # só o P0 (o estado de jogo)
+            continue
+        for j in range(min(n_clk, 8)):
+            c = base + 8 + j * _PS20_CLOCK
+            dom, _tipo, c_flags, val, mn, mx = _st.unpack_from("<IIIiii", buf, c)
+            if dom in (NVAPI_NUCLEO, NVAPI_MEMORIA):
+                # vale o "pode mexer" de cada clock (alguns drivers deixam os outros dois em 0 mesmo aceitando)
+                out[dom] = {"editavel": bool(c_flags & 1), "agora": int(val / 1000),
+                            "min": int(mn / 1000), "max": int(mx / 1000)}
+    return out
+
+
+def nvapi_ps20_montar(dominio, mhz):
+    """Monta o pedido para o driver: só o P0, só um clock, só o deslocamento. Função pura."""
+    import struct as _st
+    b = bytearray(_PS20_TAM)
+    _st.pack_into("<IIIII", b, 0, _PS20_VER1, 0, 1, 1, 0)       # versão, -, 1 P-state, 1 clock, 0 tensões
+    _st.pack_into("<II", b, 20, 0, 0)                            # P0
+    _st.pack_into("<IIIi", b, 28, int(dominio), 0, 0, int(mhz) * 1000)  # domínio, tipo, -, deslocamento em kHz
+    return b
+
+
+class _Nvapi:
+    """Envelope fino em volta da NVAPI (ctypes). Nunca levanta erro."""
+
+    def __init__(self):
+        self.ok = False
+        self.tentou = False
+        self.erro = ""
+        self.gpu = None
+        self.f = {}
+
+    @staticmethod
+    def _candidatas():
+        extra = os.environ.get("TOTIMIZE_NVAPI")
+        if extra:
+            return [extra]
+        if not IS_WIN:
+            return []
+        return ["nvapi64.dll" if ctypes.sizeof(ctypes.c_void_p) == 8 else "nvapi.dll"]
+
+    def abrir(self, nome_nvml=""):
+        if self.ok:
+            return True
+        if self.tentou:
+            return False
+        self.tentou = True
+        lib = None
+        for c in self._candidatas():
+            try:
+                lib = ctypes.CDLL(c)
+                break
+            except OSError:
+                lib = None
+        qi = getattr(lib, "nvapi_QueryInterface", None) if lib is not None else None
+        if qi is None:
+            self.erro = "Não achei a outra biblioteca da NVIDIA (nvapi64.dll)."
+            return False
+        qi.restype = ctypes.c_void_p
+        qi.argtypes = [ctypes.c_uint]
+        tipos = {"init": ctypes.CFUNCTYPE(ctypes.c_int),
+                 "enum": ctypes.CFUNCTYPE(ctypes.c_int, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_uint)),
+                 "nome": ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_char_p),
+                 "ler": ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_char_p),
+                 "definir": ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_char_p)}
+        try:
+            for k, ident in _NVAPI_IDS.items():
+                end = qi(ident)
+                if end:
+                    self.f[k] = tipos[k](end)
+            if not all(k in self.f for k in ("init", "enum", "ler", "definir")):
+                self.erro = "este driver da NVIDIA não tem o ajuste de clock"
+                return False
+            if self.f["init"]() != 0:
+                self.erro = "a biblioteca da NVIDIA não iniciou"
+                return False
+            gpus = (ctypes.c_void_p * 64)()
+            n = ctypes.c_uint(0)
+            if self.f["enum"](gpus, ctypes.byref(n)) != 0 or not n.value:
+                self.erro = "nenhuma placa NVIDIA encontrada"
+                return False
+            self.gpu = gpus[0]
+            if n.value > 1 and "nome" in self.f and nome_nvml:  # mais de uma placa: pega a mesma que a NVML mostra
+                for k in range(min(n.value, 64)):
+                    buf = ctypes.create_string_buffer(64)
+                    if self.f["nome"](gpus[k], buf) == 0 and buf.value.decode("utf-8", "replace").strip() in nome_nvml:
+                        self.gpu = gpus[k]
+                        break
+        except (OSError, ValueError, ctypes.ArgumentError):
+            self.erro = "a biblioteca da NVIDIA deu erro"
+            return False
+        self.ok = True
+        return True
+
+    def ler(self):
+        """(código, {domínio: {...}}) do P0. Código 0 = deu certo."""
+        if not self.ok:
+            return -6, {}
+        b = ctypes.create_string_buffer(_PS20_TAM)
+        ctypes.c_uint.from_buffer(b).value = _PS20_VER1
+        try:
+            cod = int(self.f["ler"](self.gpu, b))
+        except (OSError, ValueError, ctypes.ArgumentError):
+            return -1, {}
+        return cod, (nvapi_ps20_ler(b.raw) if cod == 0 else {})
+
+    def definir(self, dominio, mhz):
+        if not self.ok:
+            return -6
+        b = ctypes.create_string_buffer(bytes(nvapi_ps20_montar(dominio, mhz)), _PS20_TAM)
+        try:
+            return int(self.f["definir"](self.gpu, b))
+        except (OSError, ValueError, ctypes.ArgumentError):
+            return -1
+
+
+def _motivo_nvapi(cod):
+    return _NVAPI_ERROS.get(cod, f"erro {cod} do driver da NVIDIA")
+
+
 class OverclockMixin:
     """Barra de overclock da placa de vídeo (página GPU & NVIDIA)."""
 
     def oc_iniciar_estado(self):
         self.oc_nv = _Nvml()
+        self.oc_api = _Nvapi()
         self._oc_trava = threading.RLock()
         self._oc = {"nivel": 0, "info": None, "aviso": "", "pronto": False}
         if CONFIG.get("oc_ativo"):  # a vez anterior fechou sem zerar: volta tudo ao padrão antes de qualquer coisa
@@ -190,6 +340,8 @@ class OverclockMixin:
     def _oc_ler(self):
         """Lê a placa: limites, valores de agora e a tabela da barra. Sempre devolve um dict."""
         nv = self.oc_nv
+        if not hasattr(self, "oc_api"):
+            self.oc_api = _Nvapi()
         if not nv.abrir():
             return {"suporte": False, "motivo": nv.erro or "Sem placa NVIDIA."}
         i = {"suporte": True, "nome": nv.nome()}
@@ -201,6 +353,21 @@ class OverclockMixin:
         cod_a, agora = nv.i32("nvmlDeviceGetMemClkVfOffset")
         i["memoria"] = {"ok": cod_f == 0 and cod_a == 0, "agora": agora or 0, "max": max(0, faixa[1]) if faixa else 0,
                         "motivo": "" if cod_f == 0 and cod_a == 0 else _motivo_nvml(cod_f or cod_a)}
+        for chave, dom, cheio in (("nucleo", NVAPI_NUCLEO, OC_NUCLEO_150), ("memoria", NVAPI_MEMORIA, OC_MEM_150)):
+            i[chave]["via"] = "nvml"
+            i[chave]["cheio"] = cheio
+        if not (i["nucleo"]["ok"] and i["memoria"]["ok"]) and self.oc_api.abrir(i["nome"]):  # v9.3: placas mais antigas
+            cod, ps = self.oc_api.ler()
+            for chave, dom, cheio in (("nucleo", NVAPI_NUCLEO, OC_NUCLEO_150), ("memoria", NVAPI_MEMORIA, OC_MEM_150_NVAPI)):
+                if i[chave]["ok"]:
+                    continue
+                d = ps.get(dom)
+                if cod == 0 and d and d["editavel"] and d["max"] > 0:
+                    i[chave] = {"ok": True, "agora": d["agora"], "max": d["max"], "min": d["min"], "motivo": "", "via": "nvapi", "cheio": cheio}
+                elif cod != 0:
+                    i[chave]["motivo"] = _motivo_nvapi(cod)
+                elif d and not d["editavel"]:
+                    i[chave]["motivo"] = "o driver desta placa trava esse ajuste (comum em notebook)"
         cod_p, padrao = nv.u32("nvmlDeviceGetPowerManagementDefaultLimit")
         cod_l, limites = nv.u32_dois("nvmlDeviceGetPowerManagementLimitConstraints")
         cod_n, atual = nv.u32("nvmlDeviceGetPowerManagementLimit")
@@ -214,8 +381,8 @@ class OverclockMixin:
         i["mhz_mem"] = nv.clock(2)
         cod_u, uso = nv.u32("nvmlDeviceGetPowerUsage")
         i["consumo"] = round(uso / 1000.0) if cod_u == 0 and uso is not None else None
-        teto = {"core": min(OC_NUCLEO_150, i["nucleo"]["max"]) if i["nucleo"]["ok"] else 0,
-                "mem": min(OC_MEM_150, i["memoria"]["max"]) if i["memoria"]["ok"] else 0,
+        teto = {"core": min(i["nucleo"]["cheio"], i["nucleo"]["max"]) if i["nucleo"]["ok"] else 0,
+                "mem": min(i["memoria"]["cheio"], i["memoria"]["max"]) if i["memoria"]["ok"] else 0,
                 "padrao": i["potencia"]["padrao"] if pot_ok else 0, "max": i["potencia"]["max"] if pot_ok else 0}
         i["teto"] = teto
         i["tabela"] = oc_tabela(teto)
@@ -259,28 +426,37 @@ class OverclockMixin:
             def _volta(chave, padrao, minimo, maximo):
                 v = antes.get(chave)
                 return v if isinstance(v, int) and not isinstance(v, bool) and minimo <= v <= maximo else padrao
-            passos = []  # (nome, função da NVML, valor, valor ao zerar)
+            api = self.oc_api
+
+            def pela_nvml(fn):
+                return lambda v: (nv.definir(fn, v), _motivo_nvml)
+
+            def pela_nvapi(dom):
+                return lambda v: (api.definir(dom, v), _motivo_nvapi)
+            passos = []  # (nome, função que aplica, valor, valor ao zerar)
             if info["potencia"]["ok"]:
                 pot = info["potencia"]  # em miliwatts exatos: 0% devolve o de antes (ou o padrão da placa) sem arredondar
                 zero_mw = _volta("pot_mw", pot["padrao_mw"], pot["min_mw"], pot["max_mw"])
                 alvo_mw = zero_mw if not nivel else max(pot["min_mw"], min(watts * 1000, pot["max_mw"]))
-                passos.append(("potência", "nvmlDeviceSetPowerManagementLimit", alvo_mw, zero_mw))
+                passos.append(("potência", pela_nvml("nvmlDeviceSetPowerManagementLimit"), alvo_mw, zero_mw))
             if info["memoria"]["ok"]:
                 zero = _volta("mem", 0, -3000, 3000)
-                passos.append(("memória", "nvmlDeviceSetMemClkVfOffset", mem if nivel else zero, zero))
+                fn = pela_nvapi(NVAPI_MEMORIA) if info["memoria"].get("via") == "nvapi" else pela_nvml("nvmlDeviceSetMemClkVfOffset")
+                passos.append(("memória", fn, mem if nivel else zero, zero))
             if info["nucleo"]["ok"]:
                 zero = _volta("core", 0, -1000, 1000)
-                passos.append(("núcleo", "nvmlDeviceSetGpcClkVfOffset", core if nivel else zero, zero))
+                fn = pela_nvapi(NVAPI_NUCLEO) if info["nucleo"].get("via") == "nvapi" else pela_nvml("nvmlDeviceSetGpcClkVfOffset")
+                passos.append(("núcleo", fn, core if nivel else zero, zero))
             falhas = []
             for nome, fn, valor, _ in passos:
-                cod = nv.definir(fn, valor)
+                cod, motivo_de = fn(valor)
                 if cod != 0:
-                    falhas.append(f"{nome}: {_motivo_nvml(cod)}")
+                    falhas.append(f"{nome}: {motivo_de(cod)}")
                     if nivel:
                         break
             if falhas and nivel:  # não deixa pela metade: volta tudo ao padrão
                 for _, fn, _, zero in passos:
-                    nv.definir(fn, zero)
+                    fn(zero)
                 self._oc["nivel"] = 0
                 CONFIG.pop("oc_ativo", None)
                 CONFIG.pop("oc_antes", None)

@@ -1,14 +1,20 @@
 # Th Boost
 
-Painel de otimização e monitoramento para Windows (preto e azul, ou a cor que você escolher). Versão atual: **v9.2**.
+Painel de otimização e monitoramento para Windows (preto e azul, ou a cor que você escolher). Versão atual: **v9.3**.
 
 ## Como baixar (em qualquer computador, sem login)
 
 1. Clique neste link para baixar o ZIP pronto:
-   **[⬇ Baixar o Th Boost v9.2](https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.2.zip)**
-   (endereço: https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.2.zip)
-2. Clique com o botão direito no arquivo baixado e escolha **Extrair para "Th-Boost-v9.2\"**.
+   **[⬇ Baixar o Th Boost v9.3](https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.3.zip)**
+   (endereço: https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.3.zip)
+2. Clique com o botão direito no arquivo baixado e escolha **Extrair para "Th-Boost-v9.3\"**.
 3. Abra a pasta e leia o **LEIAME.txt** (ele explica tudo com calma).
+
+## Novidades da v9.3
+
+- **Overclock nas placas NVIDIA mais antigas:** nas GTX 600 em diante (por exemplo a GTX 750), núcleo e memória não aparecem mais como "não aceita". Quando a NVML não deixa, o Th Boost usa a NVAPI do driver (deslocamento do clock no estado P0, dentro do limite que o driver informa). Na barra, 150% = núcleo +150 MHz e memória +250 MHz nessas placas. Nada fica gravado na placa, zera ao fechar e desliga sozinho acima de 88°C.
+- Se algum item continuar sem aceitar, a página mostra o motivo (em notebook o driver costuma travar).
+- Placas AMD e Intel: a página indica o programa do fabricante (AMD Software: Adrenalin; Intel Graphics Software / Arc Control).
 
 ## Novidades da v9.2
 
