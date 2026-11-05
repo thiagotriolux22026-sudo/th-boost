@@ -1,12 +1,12 @@
 {
- "versao": "v9.3",
- "zip": "https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/atualizacao/Th-Boost-v9.3-atualizacao.zip",
- "sha256": "70589cc5c8969c72bba4b5c3521dc31836cc7fcf425f669a59f4fb7b68c49516",
- "tamanho": 371910,
+ "versao": "v9.4",
+ "zip": "https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/atualizacao/Th-Boost-v9.4-atualizacao.zip",
+ "sha256": "0488b4db3f9f2cb62c8caef67a199d19c715f0df900d5cc351a3281c06d9b244",
+ "tamanho": 377114,
  "data": "2026-11-05",
  "novidades": [
-  "Overclock de núcleo e memória também nas placas NVIDIA mais antigas (GTX 600 em diante, como a GTX 750)",
-  "Quando algum item não aceita overclock, a página GPU & NVIDIA mostra o motivo",
-  "Dica de onde fazer overclock em placas AMD e Intel"
+  "Gráfico leve no Valorant, CS2 e Roblox junto do Modo FPS On (resolução continua 100%)",
+  "Ao desligar o Modo FPS On, cada jogo volta ao gráfico que você usava",
+  "Se o jogo estiver aberto, a troca espera ele fechar"
  ]
 }

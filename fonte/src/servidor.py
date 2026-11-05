@@ -276,7 +276,7 @@ def _rodar_ps(roteiro, prefixo, extra_env, oculto=True):
         return None
 
 
-VERSAO = "v9.3"
+VERSAO = "v9.4"
 PORTA = 0
 TOKEN = secrets.token_urlsafe(24)
 TRAVA = threading.Lock()
@@ -290,7 +290,7 @@ def _contar_processos():
 
 
 class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, FerramentasMixin, MemoriaMixin, CpuMixin,
-             OverclockMixin, CpuPerfilMixin, MouseIdMixin, AtualizaMixin, AutotesteMixin, OverlayMixin):
+             OverclockMixin, CpuPerfilMixin, MouseIdMixin, AtualizaMixin, AutotesteMixin, OverlayMixin, GraficoMixin):
     """Guarda tudo o que a interface mostra e executa as ações pedidas por ela."""
 
     def __init__(self):
@@ -308,6 +308,7 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
         self.ping_ms = None
         self.otim = {"ativo": False, "fracao": 0.0, "passo": "", "titulo": "", "passos": [], "fim": 0, "mb": 0.0}
         self.ext_iniciar_estado()
+        self.gr_iniciar_estado()
         self.jogos_iniciar_estado()
         self.trab_iniciar_estado()
         self.proc_iniciar_estado()
@@ -539,7 +540,7 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
             "nome": nome_da_pessoa(), "nome_fixo": bool(_nome_limpo(CONFIG.get("nome"))),
             "pasta": pasta_do_programa(), "presentmon": bool(caminho_presentmon()),
             "modo_leve": self.mon.modo_leve, "fps_ligado": self.mon.fps_ligado, "modo_fps": self.modo_fps,
-            "contador_manual": self.contador_manual, "tema_tr": tema_tr(),
+            "contador_manual": self.contador_manual, "tema_tr": tema_tr(), "grafico": self.gr_estado(),
             "fps": d["fps"], "fps_app": d["app"], "fps_erro": d["fps_erro"], "fps1": d.get("fps1"), "fps_ms": d.get("fps_ms"),
             "ov": self.ov_snapshot(),
             "ping": self.ping_ms, "otim": self.otim, "ext": self.ext_snapshot(),
@@ -582,6 +583,7 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
     def _fps_conferir(self):
         """v9.2: o Modo FPS On não depende mais do contador; aqui só confere se a janelinha do FPS na tela fechou sozinha."""
         self.ov_conferir()
+        self.gr_conferir()  # v9.4: troca o gráfico do jogo que estava esperando fechar
 
     def ocupado(self):
         """v9.1: o que ainda está rodando e não pode ser cortado ao fechar a janela ('' = nada)."""
@@ -859,12 +861,23 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
                     if ref is not None and anterior:
                         ref["plano"] = anterior
                     extra = "" if caminho_presentmon() else " (Para ver o FPS, instale o contador na página FPS na tela.)"
-                    return "Modo FPS On ligado: o jogo tem prioridade. " + texto + extra
+                    gr = self.gr_aplicar() if self.modo_fps else ""  # v9.4: gráfico leve no Valorant, CS2 e Roblox
+                    return "Modo FPS On ligado: o jogo tem prioridade. " + texto + (" " + gr if gr else "") + extra
                 self.em_fundo(plano)
             else:
                 self.modo_fps = False
                 self.fps_contador_ajusta()
                 self._fps_voltar("Modo FPS On desligado.")
+                self.em_fundo(self.gr_voltar, lambda r: r and self.msg(r))  # v9.4: o gráfico dos jogos volta
+        elif nome == "grafico_leve":  # v9.4: liga/desliga o gráfico leve junto do Modo FPS On
+            liga = bool(dados.get("on"))
+            if liga:
+                CONFIG.pop("grafico_leve", None)
+            else:
+                CONFIG["grafico_leve"] = False
+            salvar_config()
+            if self.modo_fps:
+                self.em_fundo(self.gr_aplicar if liga else self.gr_voltar, lambda r: r and self.msg(r))
         elif nome == "fps_contador":  # só o contador (botão do Monitor)
             self.contador_manual = not self.contador_manual
             if self.contador_manual and not caminho_presentmon():
@@ -1153,6 +1166,7 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
             self.ov_fechar()  # some com o FPS na tela
         except Exception:
             pass
+        self.gr_fechar()  # devolve o gráfico dos jogos (o que estiver aberto volta na próxima vez)
         self.cpu_fechar()  # solta o teto de CPU dos programas em segundo plano
         self.oc_fechar()  # devolve a placa de vídeo ao padrão, se o overclock estava ligado
         try:

@@ -1,14 +1,19 @@
 # Th Boost
 
-Painel de otimização e monitoramento para Windows (preto e azul, ou a cor que você escolher). Versão atual: **v9.3**.
+Painel de otimização e monitoramento para Windows (preto e azul, ou a cor que você escolher). Versão atual: **v9.4**.
 
 ## Como baixar (em qualquer computador, sem login)
 
 1. Clique neste link para baixar o ZIP pronto:
-   **[⬇ Baixar o Th Boost v9.3](https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.3.zip)**
-   (endereço: https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.3.zip)
-2. Clique com o botão direito no arquivo baixado e escolha **Extrair para "Th-Boost-v9.3\"**.
+   **[⬇ Baixar o Th Boost v9.4](https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.4.zip)**
+   (endereço: https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.4.zip)
+2. Clique com o botão direito no arquivo baixado e escolha **Extrair para "Th-Boost-v9.4\"**.
 3. Abra a pasta e leia o **LEIAME.txt** (ele explica tudo com calma).
+
+## Novidades da v9.4
+
+- **Gráfico leve nos jogos** (Modos › Modo FPS On, chave "Gráfico leve nos jogos", já vem ligada): ao ligar o Modo FPS On, o **Valorant**, o **CS2** e o **Roblox** ficam com o gráfico no mínimo (sombras, efeitos, texturas e detalhes baixos), com a **resolução em 100%**. Ao desligar, cada item volta ao valor que você usava; sensibilidade, volume e o resto do arquivo não mudam.
+- O jogo precisa estar fechado: se estiver aberto, a troca espera ele fechar. Antes de mexer, o Th Boost guarda uma cópia de cada arquivo em `%LOCALAPPDATA%\ThBoost\grafico`.
 
 ## Novidades da v9.3
 

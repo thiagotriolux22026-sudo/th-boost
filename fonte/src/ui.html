@@ -986,6 +986,9 @@ html.leve .w3::before{text-shadow:.018em .02em 0 #3c9bff,.036em .04em 0 #348cf6,
 html.leve .atu-not,html.leve .atu-card{animation:none}html.leve .atu-not{-webkit-backdrop-filter:none;backdrop-filter:none}html.leve .atu-not.toca .atu-ic svg{animation:none}
 @media (max-width:560px){.atu-card{flex-direction:column;gap:14px;padding:22px 20px 20px}.atu-cx b{font-size:19px}}
 #ocV .ocm{display:block;margin-top:4px;font-size:11px;line-height:1.35;color:var(--m);text-transform:none;letter-spacing:0;font-weight:500}
+.grl{display:flex;gap:14px;align-items:flex-start;margin-top:18px;padding-top:16px;border-top:1px solid var(--l)}
+.grl .sw{flex:none;margin-top:2px}.grl>div>b{display:block;margin-bottom:4px}.grl small b{color:var(--t)}.grl small{display:block;color:var(--m);line-height:1.5}
+.grl .grs{color:var(--r4,var(--t));margin-top:6px;font-weight:600}.grl .grs:empty{display:none}
 /* v9.2: cor do painel */
 .tmg{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:12px}
 .tmb{display:grid;justify-items:center;gap:10px;padding:16px 10px 14px;border-radius:16px;border:1px solid var(--l);background:var(--p2);color:var(--t);cursor:pointer;font:inherit;font-weight:600;transition:border-color .2s,transform .2s}
@@ -1194,7 +1197,8 @@ html.leve .atu-not,html.leve .atu-card{animation:none}html.leve .atu-not{-webkit
       <section class="pg" id="p-modos">
         <div class="grade g2">
           <div class="cd led modo-c" style="--i:0"><h2>Modo Leve</h2><p>Programas em segundo plano recebem prioridade baixa. O app em foco fica com prioridade alta.</p><div class="lin"><button class="sw" id="swLeve" aria-label="Modo Leve"><i></i></button><span class="st" id="stLeve">DESLIGADO</span></div></div>
-          <div class="cd led modo-c" style="--i:1"><h2>Modo FPS On</h2><p id="fpsDesc">O jogo ganha prioridade sobre o resto (Modo Leve) e o PC vai para o plano de desempenho. Ao desligar, tudo volta como estava.</p><div class="lin"><button class="sw" id="swFps" aria-label="Modo FPS On"><i></i></button><span class="st" id="stFps">DESLIGADO</span></div></div>
+          <div class="cd led modo-c" style="--i:1"><h2>Modo FPS On</h2><p id="fpsDesc">O jogo ganha prioridade sobre o resto (Modo Leve) e o PC vai para o plano de desempenho. Ao desligar, tudo volta como estava.</p><div class="lin"><button class="sw" id="swFps" aria-label="Modo FPS On"><i></i></button><span class="st" id="stFps">DESLIGADO</span></div>
+            <div class="grl"><button class="sw" id="swGr" aria-label="Gráfico leve nos jogos"><i></i></button><div><b>Gráfico leve nos jogos</b><small>Junto com o Modo FPS On, o <b>Valorant</b>, o <b>CS2</b> e o <b>Roblox</b> ficam com o gráfico no mínimo (sombras, efeitos, texturas e detalhes baixos), com a resolução em 100% para a imagem continuar nítida. Ao desligar, cada um volta ao gráfico que você usava. O jogo precisa estar fechado: se estiver aberto, muda quando ele fechar.</small><small class="grs" id="grSt"></small></div></div></div>
         </div>
         <div class="cd" style="--i:2"><h3>Como funciona</h3><p>Nada é encerrado: o Modo Leve só muda a prioridade de execução dos seus programas, e tudo volta ao normal ao desligar ou ao fechar o Th Boost.</p></div>
       </section>
@@ -1530,7 +1534,7 @@ $('#swBg').onclick=()=>acao('segundo_plano',{ligar:!$('#swBg').classList.contain
 $('#atuSim').onclick=()=>{$('#atuSim').disabled=true;acao('atu_instalar').finally(()=>{$('#atuSim').disabled=false})};
 $('#atuNao').onclick=$('#atuX').onclick=()=>{const a=S&&S.atu;if(a&&a.nova){atuDepois=a.nova;try{sessionStorage.setItem('thboost-atu-depois',a.nova)}catch(e){}}$('#atuNot').hidden=true;toast('Tudo bem. O aviso volta quando você abrir o Th Boost de novo (ou em Configurações › Atualizações).')};
 $('#swAtu').onclick=()=>acao('atu_avisar',{ligar:!$('#swAtu').classList.contains('on')});
-$('#atRun').onclick=()=>acao('autoteste');$('#atCopy').onclick=atCopiar;$('#atuAgora').onclick=()=>{atuDepois='';try{sessionStorage.removeItem('thboost-atu-depois')}catch(e){}acao('atu_procurar')};$('#swLeve').onclick=()=>acao('leve');$('#swFps').onclick=()=>acao('fps');$('#swFps2').onclick=()=>acao('fps');
+$('#atRun').onclick=()=>acao('autoteste');$('#atCopy').onclick=atCopiar;$('#atuAgora').onclick=()=>{atuDepois='';try{sessionStorage.removeItem('thboost-atu-depois')}catch(e){}acao('atu_procurar')};$('#swLeve').onclick=()=>acao('leve');$('#swFps').onclick=()=>acao('fps');$('#swGr').onclick=()=>acao('grafico_leve',{on:!(S&&S.grafico&&S.grafico.ligado)});$('#swFps2').onclick=()=>acao('fps');
 $('#rg').addEventListener('input',()=>rgTxt());
 $('#ocAp').onclick=()=>{const n=+$('#rg').value,oc=(S&&S.oc)||{};
  if(S&&!S.admin)return toast('O overclock precisa do Th Boost aberto como Administrador. Feche e abra pelo atalho da área de trabalho.');
@@ -1686,6 +1690,8 @@ function atualizar(s){
  $('#fps1S').textContent=s.fps_ligado&&s.fps!=null&&s.fps1!=null?`1% mais baixo: ${s.fps1} FPS · quadro: ${String(s.fps_ms).replace('.',',')} ms`:'';
  const fb=$('#fpsBt');fb.disabled=false;if(!s.presentmon){fb.textContent='Instalar contador';fb.removeAttribute('data-a');fb.dataset.ir='overlay'}else if(s.fps_ligado&&!s.contador_manual){delete fb.dataset.ir;fb.removeAttribute('data-a');fb.textContent='Ligado pelo '+(s.modo_fps?'Modo FPS On':'FPS na tela');fb.disabled=true}else{delete fb.dataset.ir;fb.dataset.a='fps_contador';fb.textContent=s.contador_manual?'Desligar contador':'Ligar contador'}
  /* modos */
+ if(s.grafico){const g=s.grafico,nm={valorant:'Valorant',cs2:'CS2',roblox:'Roblox'};$('#swGr').classList.toggle('on',g.ligado);
+  $('#grSt').textContent=g.texto||(g.aplicado.length?'Agora no mínimo: '+g.aplicado.map(x=>nm[x]||x).join(', ')+'.':'')}
  [['swLeve','stLeve',s.modo_leve],['swFps','stFps',s.modo_fps],['swFps2','stFps2',s.modo_fps]].forEach(([a,b,v])=>{$('#'+a).classList.toggle('on',v);const e=$('#'+b);e.textContent=v?'LIGADO':'DESLIGADO';e.classList.toggle('on',v);if(b==='stFps2')e.style.color=v?'#ffffff':''});
  $('#fpsDesc').textContent='O jogo ganha prioridade sobre o resto (Modo Leve) e o PC vai para o plano de desempenho. Ao desligar, tudo volta como estava.'+(s.presentmon?' O contador de FPS liga junto.':'');$('#jgFps').textContent='Dá prioridade ao jogo e liga o plano de desempenho. Ao desligar, volta como estava.';
  /* disco */
