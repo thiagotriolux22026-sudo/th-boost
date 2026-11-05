@@ -1,12 +1,12 @@
 {
- "versao": "v9.4",
- "zip": "https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/atualizacao/Th-Boost-v9.4-atualizacao.zip",
- "sha256": "0488b4db3f9f2cb62c8caef67a199d19c715f0df900d5cc351a3281c06d9b244",
- "tamanho": 377114,
+ "versao": "v9.5",
+ "zip": "https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/atualizacao/Th-Boost-v9.5-atualizacao.zip",
+ "sha256": "f2a838c625cca0fdf549226ef65221876f3093acbe0d1f4d936ccc7b22debc66",
+ "tamanho": 379494,
  "data": "2026-11-05",
  "novidades": [
-  "Gráfico leve no Valorant, CS2 e Roblox junto do Modo FPS On (resolução continua 100%)",
-  "Ao desligar o Modo FPS On, cada jogo volta ao gráfico que você usava",
-  "Se o jogo estiver aberto, a troca espera ele fechar"
+  "Mostra quem segura o seu FPS: o processador (CPU) ou a placa de vídeo (GPU), no FPS na tela e no Monitor",
+  "Gráfico leve com o perfil Processador fraco: alivia o processador e deixa a placa trabalhar mais",
+  "Explica o que fazer em cada caso (por exemplo, quando o overclock da placa não muda o FPS)"
  ]
 }

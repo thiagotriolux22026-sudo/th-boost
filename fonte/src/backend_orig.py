@@ -559,6 +559,7 @@ class Monitor(threading.Thread):
         self.jogando = False  # v9.1: durante uma sessão de jogo o Th Boost lê menos coisas (sobra mais CPU para o jogo)
         self._dono = {}  # pid -> (hora de criação, é do seu usuário?) para não perguntar ao Windows a cada 4 s
         self.protege = set()  # v9.2: a janelinha do FPS na tela (o Modo Leve não baixa a prioridade dela)
+        self._lim = collections.deque(maxlen=5)  # v9.5: últimas leituras (CPU, núcleo mais usado, GPU)
         self._religar_fps = False
 
     def run(self):
@@ -573,10 +574,14 @@ class Monitor(threading.Thread):
                 self.dados["gpu"] = ler_gpu()
                 self.dados["gpu_lida"] = True
                 ultimo_gpu = agora
-            if self.overlay and agora - ultimo_cpu_ov >= 0.9:  # v9.2: CPU % do FPS na tela, lida sempre por esta mesma linha
+            if (self.overlay or not self.ocioso) and agora - ultimo_cpu_ov >= 0.9:  # v9.2: CPU % do FPS na tela (sempre por esta linha)
                 ultimo_cpu_ov = agora
-                try:
-                    self.dados["cpu_ov"] = psutil.cpu_percent(interval=None)
+                try:  # v9.5: por núcleo, para saber quem segura o FPS (processador ou placa de vídeo)
+                    nucleos = psutil.cpu_percent(interval=None, percpu=True) or []
+                    tot = sum(nucleos) / len(nucleos) if nucleos else None
+                    self.dados["cpu_ov"] = tot
+                    self._lim.append((tot, max(nucleos) if nucleos else None, (self.dados.get("gpu") or {}).get("uso")))
+                    self.dados["gargalo"] = gargalo(list(self._lim))
                 except Exception:
                     self.dados["cpu_ov"] = None
             if not self.ocioso and agora - ultimo_rede >= 1:

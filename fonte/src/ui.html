@@ -989,6 +989,9 @@ html.leve .atu-not,html.leve .atu-card{animation:none}html.leve .atu-not{-webkit
 .grl{display:flex;gap:14px;align-items:flex-start;margin-top:18px;padding-top:16px;border-top:1px solid var(--l)}
 .grl .sw{flex:none;margin-top:2px}.grl>div>b{display:block;margin-bottom:4px}.grl small b{color:var(--t)}.grl small{display:block;color:var(--m);line-height:1.5}
 .grl .grs{color:var(--r4,var(--t));margin-top:6px;font-weight:600}.grl .grs:empty{display:none}
+.grp{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 8px}.grp button{padding:8px 14px;border-radius:10px;border:1px solid var(--l2);background:var(--p2);color:var(--t);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.grp button.on{border-color:var(--r);background:rgba(51,137,250,.16);box-shadow:inset 0 0 0 1px var(--r)}
+.lim{margin:10px 0 0;padding:10px 12px;border-radius:12px;background:var(--p2);border:1px solid var(--l);font-size:13px;line-height:1.5;text-align:left}.lim b{display:block;margin-bottom:2px}
 /* v9.2: cor do painel */
 .tmg{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:12px}
 .tmb{display:grid;justify-items:center;gap:10px;padding:16px 10px 14px;border-radius:16px;border:1px solid var(--l);background:var(--p2);color:var(--t);cursor:pointer;font:inherit;font-weight:600;transition:border-color .2s,transform .2s}
@@ -1187,7 +1190,7 @@ html.leve .atu-not,html.leve .atu-card{animation:none}html.leve .atu-not{-webkit
       <!-- MONITOR -->
       <section class="pg" id="p-monitor">
         <div class="grade gA" style="grid-template-columns:260px minmax(0,1fr)">
-          <div class="cd led mt" style="--i:0"><h3>FPS</h3><div class="nm" id="fpsN" style="font-size:64px;margin:6px 0 2px">--</div><p id="fpsS">Ligue o contador para ver os quadros.</p><p id="fps1S" class="sub2" style="margin:4px 0 0"></p><div class="linha" style="justify-content:center;margin-top:12px"><button class="bt g" data-a="fps_contador" id="fpsBt">Ligar contador</button></div></div>
+          <div class="cd led mt" style="--i:0"><h3>FPS</h3><div class="nm" id="fpsN" style="font-size:64px;margin:6px 0 2px">--</div><p id="fpsS">Ligue o contador para ver os quadros.</p><p id="fps1S" class="sub2" style="margin:4px 0 0"></p><p class="lim" id="limS" hidden></p><div class="linha" style="justify-content:center;margin-top:12px"><button class="bt g" data-a="fps_contador" id="fpsBt">Ligar contador</button></div></div>
           <div class="cd" style="--i:1"><div class="leg"><span><i style="background:#3389fa"></i>CPU</span><span><i style="background:#d1e5fe"></i>RAM</span><span><i style="background:#ffa23d"></i>GPU</span></div><canvas class="gf" id="gfMonitor"></canvas></div>
         </div>
         <div class="cd" style="--i:2" id="barras"></div>
@@ -1198,7 +1201,9 @@ html.leve .atu-not,html.leve .atu-card{animation:none}html.leve .atu-not{-webkit
         <div class="grade g2">
           <div class="cd led modo-c" style="--i:0"><h2>Modo Leve</h2><p>Programas em segundo plano recebem prioridade baixa. O app em foco fica com prioridade alta.</p><div class="lin"><button class="sw" id="swLeve" aria-label="Modo Leve"><i></i></button><span class="st" id="stLeve">DESLIGADO</span></div></div>
           <div class="cd led modo-c" style="--i:1"><h2>Modo FPS On</h2><p id="fpsDesc">O jogo ganha prioridade sobre o resto (Modo Leve) e o PC vai para o plano de desempenho. Ao desligar, tudo volta como estava.</p><div class="lin"><button class="sw" id="swFps" aria-label="Modo FPS On"><i></i></button><span class="st" id="stFps">DESLIGADO</span></div>
-            <div class="grl"><button class="sw" id="swGr" aria-label="Gráfico leve nos jogos"><i></i></button><div><b>Gráfico leve nos jogos</b><small>Junto com o Modo FPS On, o <b>Valorant</b>, o <b>CS2</b> e o <b>Roblox</b> ficam com o gráfico no mínimo (sombras, efeitos, texturas e detalhes baixos), com a resolução em 100% para a imagem continuar nítida. Ao desligar, cada um volta ao gráfico que você usava. O jogo precisa estar fechado: se estiver aberto, muda quando ele fechar.</small><small class="grs" id="grSt"></small></div></div></div>
+            <div class="grl"><button class="sw" id="swGr" aria-label="Gráfico leve nos jogos"><i></i></button><div><b>Gráfico leve nos jogos</b><small>Junto com o Modo FPS On, o <b>Valorant</b>, o <b>CS2</b> e o <b>Roblox</b> ficam com o gráfico no mínimo (sombras, efeitos, texturas e detalhes baixos), com a resolução em 100% para a imagem continuar nítida. Ao desligar, cada um volta ao gráfico que você usava. O jogo precisa estar fechado: se estiver aberto, muda quando ele fechar.</small>
+              <div class="grp" role="group" aria-label="Perfil do gráfico leve"><button data-grp="minimo">Tudo no mínimo</button><button data-grp="proc">Processador fraco</button></div>
+              <small id="grPx"></small><small class="grs" id="grSt"></small></div></div></div>
         </div>
         <div class="cd" style="--i:2"><h3>Como funciona</h3><p>Nada é encerrado: o Modo Leve só muda a prioridade de execução dos seus programas, e tudo volta ao normal ao desligar ou ao fechar o Th Boost.</p></div>
       </section>
@@ -1534,7 +1539,7 @@ $('#swBg').onclick=()=>acao('segundo_plano',{ligar:!$('#swBg').classList.contain
 $('#atuSim').onclick=()=>{$('#atuSim').disabled=true;acao('atu_instalar').finally(()=>{$('#atuSim').disabled=false})};
 $('#atuNao').onclick=$('#atuX').onclick=()=>{const a=S&&S.atu;if(a&&a.nova){atuDepois=a.nova;try{sessionStorage.setItem('thboost-atu-depois',a.nova)}catch(e){}}$('#atuNot').hidden=true;toast('Tudo bem. O aviso volta quando você abrir o Th Boost de novo (ou em Configurações › Atualizações).')};
 $('#swAtu').onclick=()=>acao('atu_avisar',{ligar:!$('#swAtu').classList.contains('on')});
-$('#atRun').onclick=()=>acao('autoteste');$('#atCopy').onclick=atCopiar;$('#atuAgora').onclick=()=>{atuDepois='';try{sessionStorage.removeItem('thboost-atu-depois')}catch(e){}acao('atu_procurar')};$('#swLeve').onclick=()=>acao('leve');$('#swFps').onclick=()=>acao('fps');$('#swGr').onclick=()=>acao('grafico_leve',{on:!(S&&S.grafico&&S.grafico.ligado)});$('#swFps2').onclick=()=>acao('fps');
+$('#atRun').onclick=()=>acao('autoteste');$('#atCopy').onclick=atCopiar;$('#atuAgora').onclick=()=>{atuDepois='';try{sessionStorage.removeItem('thboost-atu-depois')}catch(e){}acao('atu_procurar')};$('#swLeve').onclick=()=>acao('leve');$('#swFps').onclick=()=>acao('fps');$('#swGr').onclick=()=>acao('grafico_leve',{on:!(S&&S.grafico&&S.grafico.ligado)});document.querySelectorAll('[data-grp]').forEach(b=>b.onclick=()=>acao('grafico_perfil',{perfil:b.dataset.grp}));$('#swFps2').onclick=()=>acao('fps');
 $('#rg').addEventListener('input',()=>rgTxt());
 $('#ocAp').onclick=()=>{const n=+$('#rg').value,oc=(S&&S.oc)||{};
  if(S&&!S.admin)return toast('O overclock precisa do Th Boost aberto como Administrador. Feche e abra pelo atalho da área de trabalho.');
@@ -1598,7 +1603,7 @@ async function atCopiar(){let t='';try{t=(await pegar('autoteste')).texto||''}ca
  if(!ok){const ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{ok=document.execCommand('copy')}catch(e){}ta.remove()}
  toast(ok?'Relatório copiado. Cole na conversa com o dono (Ctrl+V).':'Não consegui copiar. Selecione o texto e copie.')}
 /* FPS na tela */
-const OV_IT=[['fps','FPS'],['fps1','1% baixo'],['ms','Tempo do quadro'],['cpu','CPU %'],['tcpu','Temp. CPU'],['gpu','GPU %'],['tgpu','Temp. GPU'],['ram','RAM %']],OV_POS=[['se','↖ Em cima, à esquerda'],['sd','↗ Em cima, à direita'],['ie','↙ Embaixo, à esquerda'],['id','↘ Embaixo, à direita']];
+const OV_IT=[['fps','FPS'],['fps1','1% baixo'],['ms','Tempo do quadro'],['cpu','CPU %'],['tcpu','Temp. CPU'],['gpu','GPU %'],['tgpu','Temp. GPU'],['ram','RAM %'],['lim','Gargalo (CPU ou GPU)']],OV_POS=[['se','↖ Em cima, à esquerda'],['sd','↗ Em cima, à direita'],['ie','↙ Embaixo, à esquerda'],['id','↘ Embaixo, à direita']];
 function montaOverlay(){$('#p-overlay').innerHTML=`<div class="cd led cab" style="--i:0"><div><h2>FPS na tela</h2><p>Mostra o FPS, o 1% mais baixo (as travadinhas), o tempo de cada quadro, CPU, placa de vídeo e temperaturas num cantinho <b>por cima do jogo</b>. Não pega clique nem teclado: tudo continua indo para o jogo. <b>Ctrl+Shift+F</b> esconde e mostra durante o jogo.</p></div><div class="linha" style="gap:12px"><button class="sw" id="swOv" aria-label="FPS na tela"><i></i></button><span class="st" id="stOv">DESLIGADO</span></div></div>
  <div class="avs" id="ovPmAv" hidden></div>
  <div class="ovg" style="margin-top:16px"><div class="cd" style="--i:1"><h3 style="margin-top:0">Prévia</h3><div class="ovprev" id="ovPrev"></div><p class="sub2" style="margin:10px 0 0">Funciona por cima de jogos em janela ou em <b>tela cheia sem bordas</b> (a maioria dos jogos atuais). Se num jogo em tela cheia não aparecer, escolha “Janela sem bordas” (ou “Borderless”) nas opções de vídeo do jogo. Com a janela do Th Boost fechada, o FPS continua na tela; para tirar, abra o Th Boost e desligue aqui.</p></div>
@@ -1610,9 +1615,9 @@ function ovMuda(m){const c=Object.assign({},ovCfg(),m);acao('overlay',{cfg:c})}
 function pintarOverlay(s){const el=$('#p-overlay');if(!el||!s.ov)return;const c=s.ov.cfg,pm=s.ov.pm||{};
  $('#swOv').classList.toggle('on',!!c.on);$('#swOv').setAttribute('aria-pressed',String(!!c.on));$('#stOv').textContent=c.on?'LIGADO':'DESLIGADO';$('#stOv').classList.toggle('on',!!c.on);
  el.querySelectorAll('[data-ovpos]').forEach(b=>b.classList.toggle('on',b.dataset.ovpos===c.pos));el.querySelectorAll('[data-ovtam]').forEach(b=>b.classList.toggle('on',+b.dataset.ovtam===c.tam));el.querySelectorAll('[data-ovit]').forEach(b=>b.classList.toggle('on',c.itens.includes(b.dataset.ovit)));
- const v={fps:s.fps_ligado?s.fps:null,fps1:s.fps_ligado?s.fps1:null,ms:s.fps_ligado?s.fps_ms:null,cpu:s.cpu,tcpu:s.tcpu,gpu:s.gpu_uso,tgpu:s.tgpu,ram:s.ram};
+ const v={fps:s.fps_ligado?s.fps:null,fps1:s.fps_ligado?s.fps1:null,ms:s.fps_ligado?s.fps_ms:null,cpu:s.cpu,tcpu:s.tcpu,gpu:s.gpu_uso,tgpu:s.tgpu,ram:s.ram,lim:s.gargalo};
  const n=(x,suf='')=>x==null?'--':Math.round(x)+suf,cf=(x)=>x==null?'#9aa4b2':x>=60?'#4ade80':x>=30?'#facc15':'#f87171';
- const L={fps:['FPS',n(v.fps),cf(v.fps)],fps1:['1% baixo',n(v.fps1),cf(v.fps1)],ms:['Quadro',v.ms==null?'--':String(v.ms).replace('.',',')+' ms','#e2e8f0'],cpu:['CPU',n(v.cpu,'%'),'#e2e8f0'],tcpu:['CPU °C',n(v.tcpu,'°'),'#e2e8f0'],gpu:['GPU',n(v.gpu,'%'),'#e2e8f0'],tgpu:['GPU °C',n(v.tgpu,'°'),'#e2e8f0'],ram:['RAM',n(v.ram,'%'),'#e2e8f0']};
+ const L={fps:['FPS',n(v.fps),cf(v.fps)],fps1:['1% baixo',n(v.fps1),cf(v.fps1)],ms:['Quadro',v.ms==null?'--':String(v.ms).replace('.',',')+' ms','#e2e8f0'],cpu:['CPU',n(v.cpu,'%'),'#e2e8f0'],tcpu:['CPU °C',n(v.tcpu,'°'),'#e2e8f0'],gpu:['GPU',n(v.gpu,'%'),'#e2e8f0'],tgpu:['GPU °C',n(v.tgpu,'°'),'#e2e8f0'],ram:['RAM',n(v.ram,'%'),'#e2e8f0'],lim:v.lim?['Gargalo',...({cpu:['CPU','#f87171'],gpu:['GPU','#4ade80'],folga:['nenhum','#e2e8f0']}[v.lim])]:null};
  $('#ovPrev').innerHTML=`<div class="ovbox ${c.pos} t${c.tam}">${c.itens.map(i=>L[i]?`<span>${L[i][0]}</span><b style="color:${L[i][2]}">${L[i][1]}</b>`:'').join('')}</div>`;
  const av=$('#ovPmAv');let h='';
  if(!s.presentmon){h=pm.estado==='baixando'?`${ico('info')}<div class="ovpm" style="flex:1"><span>Baixando o contador de FPS…</span><div class="tr"><i style="width:${pm.pct||0}%"></i></div></div>`:
@@ -1688,9 +1693,16 @@ function atualizar(s){
  const er=s.fps_erro;$('#fpsN').textContent=(!er&&s.fps_ligado&&s.fps!=null)?s.fps:'--';
  $('#fpsS').textContent=!s.presentmon?'Para ver o FPS, instale o contador (um clique) na página FPS na tela.':er?er:(s.fps_ligado&&s.fps!=null?`em ${s.fps_app}`:(s.fps_ligado?'Abra um jogo: o FPS aparece aqui.':'Ligue o contador para ver os quadros.'));
  $('#fps1S').textContent=s.fps_ligado&&s.fps!=null&&s.fps1!=null?`1% mais baixo: ${s.fps1} FPS · quadro: ${String(s.fps_ms).replace('.',',')} ms`:'';
+ {const g=s.gargalo,ls=$('#limS'),joga=s.fps_ligado&&(s.fps||0)>0; /* v9.5: quem segura o FPS */
+  const t=g==='cpu'?'<b>Quem segura o FPS: o processador</b>A placa de vídeo está sobrando, então o overclock dela não aumenta o FPS. O que ajuda é aliviar o processador: Modo FPS On, gráfico leve no perfil "Processador fraco" e menos programas abertos.'
+   :g==='gpu'?'<b>Quem segura o FPS: a placa de vídeo</b>Ela está no limite: aqui o overclock da placa e o gráfico leve ajudam.'
+   :g==='folga'&&joga?'<b>Nem o processador nem a placa estão no limite</b>O FPS está preso por um limite do próprio jogo (limite de FPS ou VSync).':'';
+  ls.hidden=!t;if(ls._h!==t){ls._h=t;ls.innerHTML=t}}
  const fb=$('#fpsBt');fb.disabled=false;if(!s.presentmon){fb.textContent='Instalar contador';fb.removeAttribute('data-a');fb.dataset.ir='overlay'}else if(s.fps_ligado&&!s.contador_manual){delete fb.dataset.ir;fb.removeAttribute('data-a');fb.textContent='Ligado pelo '+(s.modo_fps?'Modo FPS On':'FPS na tela');fb.disabled=true}else{delete fb.dataset.ir;fb.dataset.a='fps_contador';fb.textContent=s.contador_manual?'Desligar contador':'Ligar contador'}
  /* modos */
  if(s.grafico){const g=s.grafico,nm={valorant:'Valorant',cs2:'CS2',roblox:'Roblox'};$('#swGr').classList.toggle('on',g.ligado);
+  document.querySelectorAll('[data-grp]').forEach(b=>{const on=b.dataset.grp===g.perfil;b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on))});
+  $('#grPx').textContent=g.perfil==='proc'?'Processador fraco: para quando o processador fica em 100% e a placa de vídeo sobra. O que pesa no processador (sombras, distância, partículas, efeitos) fica no mínimo e o que só pesa na placa (texturas, materiais, suavização, filtro de textura) sobe. O FPS fica igual ao mínimo, a imagem fica melhor e a placa trabalha mais. No Roblox fica no mínimo.':'Tudo no mínimo: para quando a placa de vídeo é que está no limite.';
   $('#grSt').textContent=g.texto||(g.aplicado.length?'Agora no mínimo: '+g.aplicado.map(x=>nm[x]||x).join(', ')+'.':'')}
  [['swLeve','stLeve',s.modo_leve],['swFps','stFps',s.modo_fps],['swFps2','stFps2',s.modo_fps]].forEach(([a,b,v])=>{$('#'+a).classList.toggle('on',v);const e=$('#'+b);e.textContent=v?'LIGADO':'DESLIGADO';e.classList.toggle('on',v);if(b==='stFps2')e.style.color=v?'#ffffff':''});
  $('#fpsDesc').textContent='O jogo ganha prioridade sobre o resto (Modo Leve) e o PC vai para o plano de desempenho. Ao desligar, tudo volta como estava.'+(s.presentmon?' O contador de FPS liga junto.':'');$('#jgFps').textContent='Dá prioridade ao jogo e liga o plano de desempenho. Ao desligar, volta como estava.';

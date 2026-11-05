@@ -276,7 +276,7 @@ def _rodar_ps(roteiro, prefixo, extra_env, oculto=True):
         return None
 
 
-VERSAO = "v9.4"
+VERSAO = "v9.5"
 PORTA = 0
 TOKEN = secrets.token_urlsafe(24)
 TRAVA = threading.Lock()
@@ -540,7 +540,7 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
             "nome": nome_da_pessoa(), "nome_fixo": bool(_nome_limpo(CONFIG.get("nome"))),
             "pasta": pasta_do_programa(), "presentmon": bool(caminho_presentmon()),
             "modo_leve": self.mon.modo_leve, "fps_ligado": self.mon.fps_ligado, "modo_fps": self.modo_fps,
-            "contador_manual": self.contador_manual, "tema_tr": tema_tr(), "grafico": self.gr_estado(),
+            "contador_manual": self.contador_manual, "tema_tr": tema_tr(), "grafico": self.gr_estado(), "gargalo": self.mon.dados.get("gargalo"),
             "fps": d["fps"], "fps_app": d["app"], "fps_erro": d["fps_erro"], "fps1": d.get("fps1"), "fps_ms": d.get("fps_ms"),
             "ov": self.ov_snapshot(),
             "ping": self.ping_ms, "otim": self.otim, "ext": self.ext_snapshot(),
@@ -878,6 +878,16 @@ class Nucleo(ExtremoMixin, JogosMixin, ManutencaoMixin, ProcessosMixin, Ferramen
             salvar_config()
             if self.modo_fps:
                 self.em_fundo(self.gr_aplicar if liga else self.gr_voltar, lambda r: r and self.msg(r))
+        elif nome == "grafico_perfil":  # v9.5: "minimo" ou "proc" (processador fraco: a placa trabalha mais)
+            perfil = dados.get("perfil")
+            if perfil in GR_PERFIS and perfil != gr_perfil():
+                if perfil == "proc":
+                    CONFIG["grafico_perfil"] = "proc"
+                else:
+                    CONFIG.pop("grafico_perfil", None)
+                salvar_config()
+                if self.modo_fps and self.gr_ligado():
+                    self.em_fundo(self.gr_aplicar, lambda r: r and self.msg(r))
         elif nome == "fps_contador":  # só o contador (botão do Monitor)
             self.contador_manual = not self.contador_manual
             if self.contador_manual and not caminho_presentmon():

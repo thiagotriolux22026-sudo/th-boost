@@ -1,14 +1,19 @@
 # Th Boost
 
-Painel de otimização e monitoramento para Windows (preto e azul, ou a cor que você escolher). Versão atual: **v9.4**.
+Painel de otimização e monitoramento para Windows (preto e azul, ou a cor que você escolher). Versão atual: **v9.5**.
 
 ## Como baixar (em qualquer computador, sem login)
 
 1. Clique neste link para baixar o ZIP pronto:
-   **[⬇ Baixar o Th Boost v9.4](https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.4.zip)**
-   (endereço: https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.4.zip)
-2. Clique com o botão direito no arquivo baixado e escolha **Extrair para "Th-Boost-v9.4\"**.
+   **[⬇ Baixar o Th Boost v9.5](https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.5.zip)**
+   (endereço: https://github.com/thiagotriolux22026-sudo/th-boost/raw/main/download/Th-Boost-v9.5.zip)
+2. Clique com o botão direito no arquivo baixado e escolha **Extrair para "Th-Boost-v9.5\"**.
 3. Abra a pasta e leia o **LEIAME.txt** (ele explica tudo com calma).
+
+## Novidades da v9.5
+
+- **Quem segura o seu FPS:** o Th Boost mostra o gargalo, processador (CPU) ou placa de vídeo (GPU), no **FPS na tela** (linha "Gargalo") e no **Monitor**, com o que fazer. Exemplo: processador em 100% e placa em 20% = gargalo no processador; aí o overclock da placa não aumenta o FPS.
+- **Gráfico leve, perfil "Processador fraco":** o que pesa no processador (sombras, distância, partículas, efeitos) fica no mínimo e o que só pesa na placa (texturas médias, materiais, MSAA 2x, filtro 16x) sobe. O FPS fica igual ao mínimo, a imagem melhora e a placa trabalha mais.
 
 ## Novidades da v9.4
 

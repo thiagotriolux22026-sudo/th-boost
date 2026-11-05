@@ -5,8 +5,26 @@
 # Funciona por cima de jogos em janela ou em "tela cheia sem bordas" (a maioria dos jogos atuais). Em tela cheia exclusiva,
 # alguns jogos não deixam nenhuma janela aparecer por cima.
 
-OV_PADRAO = {"on": False, "pos": "se", "tam": 2, "itens": ["fps", "fps1", "ms", "cpu", "tcpu", "gpu", "tgpu", "ram"]}
-OV_ITENS = ("fps", "fps1", "ms", "cpu", "tcpu", "gpu", "tgpu", "ram")
+OV_PADRAO = {"on": False, "pos": "se", "tam": 2, "itens": ["fps", "fps1", "ms", "cpu", "tcpu", "gpu", "tgpu", "ram", "lim"]}
+OV_ITENS = ("fps", "fps1", "ms", "cpu", "tcpu", "gpu", "tgpu", "ram", "lim")
+GARGALO_TXT = {"cpu": ("CPU", "#f87171"), "gpu": ("GPU", "#4ade80"), "folga": ("nenhum", "#e2e8f0")}
+
+
+def gargalo(amostras):
+    """Quem segura o FPS agora, pela média das últimas leituras [(CPU total %, núcleo mais usado %, GPU %)]:
+    'gpu' (a placa está no limite: overclock da placa ajuda), 'cpu' (o processador está no limite e a placa sobra)
+    ou 'folga' (nenhum dos dois: o FPS está preso por um limite do jogo). None sem leituras suficientes. Função pura."""
+    ok = [a for a in amostras if a and a[0] is not None and a[2] is not None]
+    if len(ok) < 3:
+        return None
+    tot = sum(a[0] for a in ok) / len(ok)
+    mx = sum((a[1] if a[1] is not None else a[0]) for a in ok) / len(ok)
+    gpu = sum(a[2] for a in ok) / len(ok)
+    if gpu >= 90:
+        return "gpu"
+    if tot >= 85 or mx >= 95:
+        return "cpu"
+    return "folga"
 OV_POS = ("se", "sd", "ie", "id")  # superior esquerdo, superior direito, inferior esquerdo, inferior direito
 OV_SEM_TK = 3  # código de saída da janelinha quando o Python deste PC não tem o Tk (a parte de janelas)
 
@@ -66,6 +84,8 @@ def ov_linhas(itens, v):
                 L.append(("GPU °C", n(v.get("tgpu"), "°"), cor_t(v.get("tgpu"), 83)))
         elif i == "ram":
             L.append(("RAM", n(v.get("ram"), "%"), "#e2e8f0"))
+        elif i == "lim" and v.get("lim") in GARGALO_TXT:  # v9.5: quem segura o FPS
+            L.append(("Gargalo", *GARGALO_TXT[v["lim"]]))
     return L
 
 
@@ -291,7 +311,7 @@ class OverlayMixin:
             ram = None
         a = self.amostra or {}
         # CPU %: lida sempre pela mesma linha do programa (o Monitor), senão o número sai errado (0% ou média velha)
-        v = {"fps": d.get("fps"), "fps1": d.get("fps1"), "ms": d.get("fps_ms"), "cpu": d.get("cpu_ov"), "ram": ram,
+        v = {"fps": d.get("fps"), "fps1": d.get("fps1"), "ms": d.get("fps_ms"), "cpu": d.get("cpu_ov"), "ram": ram, "lim": d.get("gargalo"),
              "gpu": g.get("uso"), "tgpu": g.get("temp"), "tcpu": None if self.ocioso else a.get("tcpu")}
         if self.ocioso:  # janela fechada: a amostra para (e fica velha); lê a temperatura daqui (no máximo a cada 5 s)
             agora = time.time()

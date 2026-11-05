@@ -20,6 +20,17 @@ GR_CS2_BAIXO = {"setting.shaderquality": "0", "setting.r_texturefilteringquality
 # ---- Roblox: GlobalBasicSettings_*.xml (qualidade 1 = a mais baixa) ----
 GR_RBX_BAIXO = {"SavedQualityLevel": "1", "GraphicsQualityLevel": "1"}
 
+# ---- v9.5: perfil "Processador fraco" (o processador fica em 100% e a placa de vídeo sobra) ----
+# O que pesa no processador (sombras, distância de visão, partículas, efeitos, vegetação) fica no mínimo, igual ao
+# outro perfil; o que só pesa na placa (texturas, materiais, suavização, filtro de textura) sobe um pouco. O FPS fica o
+# mesmo do mínimo (quem segura é o processador), a imagem fica melhor e a placa passa a trabalhar mais.
+GR_VAL_PROC = dict(GR_VAL_BAIXO, **{"sg.TextureQuality": "1", "sg.ShadingQuality": "1", "sg.PostProcessQuality": "1"})
+GR_CS2_PROC = dict(GR_CS2_BAIXO, **{"setting.shaderquality": "1", "setting.r_texturefilteringquality": "5",
+                                     "setting.msaa_samples": "2", "setting.videocfg_texture_detail": "1",
+                                     "setting.videocfg_hdr_detail": "-1"})  # 16x, MSAA 2x, texturas médias (placa de 1 GB aguenta)
+GR_RBX_PROC = dict(GR_RBX_BAIXO)  # no Roblox um controle só mexe nos dois: fica no mínimo
+GR_PERFIS = ("minimo", "proc")
+
 
 def _ini_ler(t, secao, chaves):
     out, dentro = {}, False
@@ -106,10 +117,20 @@ def gr_rbx_mudar(t, valores):
 
 GR_JOGOS = {
     "valorant": {"nome": "Valorant", "procs": ("valorant-win64-shipping.exe", "valorant.exe"),
-                 "ler": gr_val_ler, "mudar": gr_val_mudar, "baixo": GR_VAL_BAIXO},
-    "cs2": {"nome": "CS2", "procs": ("cs2.exe",), "ler": gr_cs2_ler, "mudar": gr_cs2_mudar, "baixo": GR_CS2_BAIXO},
-    "roblox": {"nome": "Roblox", "procs": ("robloxplayerbeta.exe",), "ler": gr_rbx_ler, "mudar": gr_rbx_mudar, "baixo": GR_RBX_BAIXO},
+                 "ler": gr_val_ler, "mudar": gr_val_mudar, "baixo": GR_VAL_BAIXO, "proc": GR_VAL_PROC},
+    "cs2": {"nome": "CS2", "procs": ("cs2.exe",), "ler": gr_cs2_ler, "mudar": gr_cs2_mudar, "baixo": GR_CS2_BAIXO, "proc": GR_CS2_PROC},
+    "roblox": {"nome": "Roblox", "procs": ("robloxplayerbeta.exe",), "ler": gr_rbx_ler, "mudar": gr_rbx_mudar, "baixo": GR_RBX_BAIXO,
+               "proc": GR_RBX_PROC},
 }
+
+
+def gr_perfil():
+    return "proc" if CONFIG.get("grafico_perfil") == "proc" else "minimo"
+
+
+def gr_valores(jogo, perfil=None):
+    d = GR_JOGOS[jogo]
+    return d["proc"] if (perfil or gr_perfil()) == "proc" else d["baixo"]
 
 
 def gr_arquivos():
@@ -196,7 +217,7 @@ class GraficoMixin:
 
     def gr_estado(self):
         bk = CONFIG.get("grafico_bk") or {}
-        return {"ligado": self.gr_ligado(), "aplicado": sorted({v.get("jogo") for v in bk.values() if isinstance(v, dict)}),
+        return {"ligado": self.gr_ligado(), "perfil": gr_perfil(), "aplicado": sorted({v.get("jogo") for v in bk.values() if isinstance(v, dict)}),
                 "espera": dict(self.gr["espera"]), "texto": self.gr["texto"]}
 
     def _gr_aplicar_jogo(self, jogo, arquivos):
@@ -219,7 +240,7 @@ class GraficoMixin:
                         shutil.copy2(arq, os.path.join(pasta, nome))
                     except OSError:
                         pass
-                novo = d["mudar"](t, d["baixo"])
+                novo = d["mudar"](t, gr_valores(jogo))
                 if novo != t:
                     _gr_grava(arq, novo, cod)
                 feitos += 1
@@ -270,7 +291,8 @@ class GraficoMixin:
                 feitos.append(GR_JOGOS[jogo]["nome"])
         partes = []
         if feitos:
-            partes.append("Gráfico leve: " + ", ".join(feitos) + " no mínimo (resolução continua 100%).")
+            partes.append("Gráfico leve: " + ", ".join(feitos) + (" no perfil Processador fraco" if gr_perfil() == "proc" else " no mínimo") +
+                          " (resolução continua 100%).")
         if esperam:
             partes.append(", ".join(esperam) + (" está aberto" if len(esperam) == 1 else " estão abertos") +
                           ": o gráfico leve entra quando fechar (feche e abra o jogo de novo).")
